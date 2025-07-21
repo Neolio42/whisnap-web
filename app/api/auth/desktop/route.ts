@@ -52,7 +52,12 @@ export async function GET(req: NextRequest) {
     // Redirect to desktop app with token
     const desktopUrl = `whisnap://auth?token=${token}`;
     
-    return NextResponse.redirect(desktopUrl);
+    // For testing: return both the URL and token
+    return NextResponse.json({
+      desktopUrl,
+      token,
+      message: "Token generated successfully"
+    });
   } catch (error) {
     console.error("Error generating desktop token:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

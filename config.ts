@@ -54,6 +54,7 @@ const config = {
         description: "Hosted AI with usage limits",
         price: 15,
         priceAnchor: null,
+        isMonthly: true,
         features: [
           {
             name: "All local features (Whisper models)",

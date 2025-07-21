@@ -59,6 +59,9 @@ model User {
   
   accounts      Account[]
   sessions      Session[]
+  usage         UserUsage[]
+  costAlerts    CostAlert[]
+  costSummaries CostSummary[]
 }
 
 model VerificationToken {
@@ -75,4 +78,97 @@ model Lead {
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Enhanced usage tracking with detailed cost analytics
+model UserUsage {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Service details
+  serviceType     String   // "transcription", "llm", "embedding"
+  provider        String   // "rev-turbo", "assemblyai-streaming", "gpt-4o-mini"
+  model           String   // Model name used
+  
+  // Usage metrics
+  inputTokens     Int?     // For LLMs
+  outputTokens    Int?     // For LLMs  
+  audioSeconds    Float?   // For transcription
+  durationSeconds Float    // Processing duration
+  
+  // Cost breakdown
+  inputCostUsd    Float?   // Cost for input tokens/audio
+  outputCostUsd   Float?   // Cost for output tokens
+  totalCostUsd    Float    // Total cost
+  
+  // Metadata for analytics
+  requestSize     Int?     // File size in bytes
+  quality         String?  // "fast", "balanced", "accurate"
+  language        String?  // "en", "es", etc.
+  success         Boolean  @default(true)
+  errorMessage    String?
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([serviceType, provider])
+  @@index([createdAt]) // For global analytics
+}
+
+// Cost alerts and budgets
+model CostAlert {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Alert configuration
+  alertType       String   // "monthly_budget", "daily_limit", "per_request"
+  threshold       Float    // Dollar amount
+  period          String   // "daily", "weekly", "monthly"
+  
+  // Status
+  isActive        Boolean  @default(true)
+  lastTriggered   DateTime?
+  triggerCount    Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, isActive])
+}
+
+// Daily/monthly cost summaries for fast queries
+model CostSummary {
+  id              String   @id @default(cuid())
+  userId          String?  // null for global summaries
+  
+  // Time period
+  date            DateTime // Start of period
+  period          String   // "daily", "monthly"
+  
+  // Service breakdown
+  transcriptionCost Float   @default(0)
+  llmCost          Float   @default(0)
+  totalCost        Float   @default(0)
+  
+  // Usage counts
+  transcriptionRequests Int @default(0)
+  llmRequests          Int @default(0)
+  totalRequests        Int @default(0)
+  
+  // Performance metrics
+  avgResponseTime     Float? 
+  successRate         Float? 
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date, period])
+  @@index([date, period])
 }
