@@ -5,12 +5,14 @@ import { WhisperProvider } from './whisper';
 import { BaseTranscriptionProvider } from './base';
 import { TranscriptionProvider } from '../../../../shared/types';
 
-// Provider registry
-export const TRANSCRIPTION_PROVIDERS: Record<TranscriptionProvider, BaseTranscriptionProvider> = {
-  'rev-turbo': new RevAIProvider(),
-  'assemblyai-streaming': new AssemblyAIProvider(),
-  'deepgram-nova3': new DeepgramProvider(),
-  'whisper-api': new WhisperProvider()
+// Provider registry with lazy initialization
+const providerInstances: Partial<Record<TranscriptionProvider, BaseTranscriptionProvider>> = {};
+
+export const TRANSCRIPTION_PROVIDERS = {
+  'rev-turbo': () => providerInstances['rev-turbo'] || (providerInstances['rev-turbo'] = new RevAIProvider()),
+  'assemblyai-streaming': () => providerInstances['assemblyai-streaming'] || (providerInstances['assemblyai-streaming'] = new AssemblyAIProvider()),
+  'deepgram-nova3': () => providerInstances['deepgram-nova3'] || (providerInstances['deepgram-nova3'] = new DeepgramProvider()),
+  'whisper-api': () => providerInstances['whisper-api'] || (providerInstances['whisper-api'] = new WhisperProvider())
 };
 
 // Smart provider selection logic
@@ -41,11 +43,11 @@ export function selectTranscriptionProvider(params: {
 
 // Get provider instance
 export function getTranscriptionProvider(provider: TranscriptionProvider): BaseTranscriptionProvider {
-  const instance = TRANSCRIPTION_PROVIDERS[provider];
-  if (!instance) {
+  const providerFactory = TRANSCRIPTION_PROVIDERS[provider];
+  if (!providerFactory) {
     throw new Error(`Unknown transcription provider: ${provider}`);
   }
-  return instance;
+  return providerFactory();
 }
 
 // Check if provider supports streaming
@@ -60,10 +62,10 @@ export function getAvailableProviders(): Array<{
   supportsStreaming: boolean;
   modelName: string;
 }> {
-  return Object.entries(TRANSCRIPTION_PROVIDERS).map(([name, provider]) => ({
+  return Object.entries(TRANSCRIPTION_PROVIDERS).map(([name, providerFactory]) => ({
     name: name as TranscriptionProvider,
-    costPerHour: provider.getCostPerHour(),
-    supportsStreaming: provider.supportsStreaming(),
-    modelName: provider.getModelName()
+    costPerHour: providerFactory().getCostPerHour(),
+    supportsStreaming: providerFactory().supportsStreaming(),
+    modelName: providerFactory().getModelName()
   }));
 }

@@ -51,9 +51,24 @@ export const authOptions: NextAuthOptionsExtended = {
       }
       return session;
     },
+    jwt: async ({ token, user, account }) => {
+      // Add user info to JWT for Express API
+      if (user) {
+        token.userId = user.id;
+        token.email = user.email;
+        token.plan = (user as any).plan || 'free';
+        token.aud = 'whisnap-api'; // Audience for Express API
+      }
+      return token;
+    },
   },
   session: {
     strategy: "jwt",
+  },
+  jwt: {
+    // Use RS256 for Express API validation
+    signingKey: process.env.NEXTAUTH_SECRET,
+    maxAge: 5 * 60, // 5 minutes for security
   },
   theme: {
     brandColor: config.colors.main,

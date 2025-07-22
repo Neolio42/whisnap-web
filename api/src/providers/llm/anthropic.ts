@@ -1,6 +1,6 @@
 import { BaseLLMProvider, LLMCompletionOptions } from './base';
 import { LLMResult } from '../../../../shared/types';
-import fetch from 'node-fetch';
+import { fetch } from 'undici';
 
 export class AnthropicProvider extends BaseLLMProvider {
   getApiKey(): string {

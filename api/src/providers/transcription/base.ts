@@ -41,4 +41,11 @@ export abstract class BaseTranscriptionProvider {
     // Rough estimate: 16kHz, 16-bit mono = ~32KB per second
     return audio.length / 32000;
   }
+
+  // Calculate cost based on provider rates
+  calculateCost(provider: string, fileSizeMB: number, durationSeconds: number): number {
+    const costPerHour = this.getCostPerHour();
+    const durationHours = durationSeconds / 3600;
+    return costPerHour * Math.max(durationHours, 0.01); // Minimum 1 cent
+  }
 }

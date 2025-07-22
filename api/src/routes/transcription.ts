@@ -64,10 +64,22 @@ router.post('/transcribe',
     try {
       const { provider, language, task = 'transcribe', format = 'text' } = req.body;
       const file = req.file;
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
+
+      console.log('📁 File Upload Debug:', {
+        hasFile: !!file,
+        fileName: file?.originalname,
+        fileSize: file?.size,
+        mimeType: file?.mimetype,
+        bufferSize: file?.buffer?.length
+      });
 
       if (!file) {
         return res.status(400).json({ error: 'Audio file is required' });
+      }
+
+      if (!file.buffer || file.buffer.length === 0) {
+        return res.status(400).json({ error: 'Audio buffer is empty' });
       }
 
       // Auto-select provider if not specified
@@ -81,12 +93,8 @@ router.post('/transcribe',
       const transcriptionProvider = getTranscriptionProvider(selectedProvider);
 
       const options = {
-        audioBuffer: file.buffer,
-        filename: file.originalname || 'audio',
-        mimeType: file.mimetype,
+        audio: file.buffer,
         language,
-        task: task as 'transcribe' | 'translate',
-        format: format as 'text' | 'json' | 'srt' | 'vtt',
         userId
       };
 
@@ -125,7 +133,7 @@ router.post('/stream/start',
   async (req, res) => {
     try {
       const { provider = 'assemblyai', language, sampleRate = 16000 } = req.body;
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
 
       const transcriptionProvider = getTranscriptionProvider(provider);
 
@@ -180,7 +188,7 @@ router.get('/stream/:sessionId/status',
   async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
 
       // Verify session belongs to user
       if (!sessionId.includes(userId)) {
@@ -212,7 +220,7 @@ router.post('/stream/:sessionId/stop',
   async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
 
       // Verify session belongs to user
       if (!sessionId.includes(userId)) {

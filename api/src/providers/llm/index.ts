@@ -4,14 +4,16 @@ import { GeminiProvider } from './gemini';
 import { BaseLLMProvider } from './base';
 import { LLMModel } from '../../../../shared/types';
 
-// Provider registry
-export const LLM_PROVIDERS: Record<LLMModel, BaseLLMProvider> = {
-  'gpt-4o': new OpenAIProvider(),
-  'gpt-4o-mini': new OpenAIProvider(),
-  'claude-3-5-sonnet': new AnthropicProvider(),
-  'claude-3-5-haiku': new AnthropicProvider(),
-  'gemini-1.5-pro': new GeminiProvider(),
-  'gemini-1.5-flash': new GeminiProvider()
+// Provider registry with lazy initialization
+const llmInstances: Partial<Record<LLMModel, BaseLLMProvider>> = {};
+
+export const LLM_PROVIDERS = {
+  'gpt-4o': () => llmInstances['gpt-4o'] || (llmInstances['gpt-4o'] = new OpenAIProvider()),
+  'gpt-4o-mini': () => llmInstances['gpt-4o-mini'] || (llmInstances['gpt-4o-mini'] = new OpenAIProvider()),
+  'claude-3-5-sonnet': () => llmInstances['claude-3-5-sonnet'] || (llmInstances['claude-3-5-sonnet'] = new AnthropicProvider()),
+  'claude-3-5-haiku': () => llmInstances['claude-3-5-haiku'] || (llmInstances['claude-3-5-haiku'] = new AnthropicProvider()),
+  'gemini-1.5-pro': () => llmInstances['gemini-1.5-pro'] || (llmInstances['gemini-1.5-pro'] = new GeminiProvider()),
+  'gemini-1.5-flash': () => llmInstances['gemini-1.5-flash'] || (llmInstances['gemini-1.5-flash'] = new GeminiProvider())
 };
 
 // Smart model selection logic
@@ -59,11 +61,11 @@ export function selectLLMModel(params: {
 
 // Get provider instance
 export function getLLMProvider(model: LLMModel): BaseLLMProvider {
-  const instance = LLM_PROVIDERS[model];
-  if (!instance) {
+  const providerFactory = LLM_PROVIDERS[model];
+  if (!providerFactory) {
     throw new Error(`Unknown LLM model: ${model}`);
   }
-  return instance;
+  return providerFactory();
 }
 
 // Check if model supports streaming
@@ -131,9 +133,9 @@ export function calculateCostComparison(inputTokens: number, outputTokens: numbe
   cost: number;
   costPercentage: number;
 }> {
-  const costs = Object.entries(LLM_PROVIDERS).map(([model, provider]) => ({
+  const costs = Object.entries(LLM_PROVIDERS).map(([model, providerFactory]) => ({
     model: model as LLMModel,
-    cost: provider.calculateCost(model, inputTokens, outputTokens)
+    cost: providerFactory().calculateCost(model as LLMModel, inputTokens, outputTokens)
   }));
   
   const maxCost = Math.max(...costs.map(c => c.cost));

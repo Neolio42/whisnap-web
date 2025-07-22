@@ -1,6 +1,6 @@
 import { BaseTranscriptionProvider, TranscriptionOptions } from './base';
 import { TranscriptionResult } from '../../../../shared/types';
-import fetch from 'node-fetch';
+import { fetch } from 'undici';
 import WebSocket from 'ws';
 
 export class DeepgramProvider extends BaseTranscriptionProvider {

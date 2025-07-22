@@ -1,9 +1,25 @@
+// Load environment variables FIRST
+import dotenv from 'dotenv';
+import path from 'path';
+
+const result = dotenv.config({ path: path.resolve(__dirname, '../.env') });
+if (result.error) {
+  console.error('❌ Error loading .env file:', result.error);
+}
+
+// Debug environment variables
+console.log('🔍 Server Debug:', {
+  NODE_ENV: process.env.NODE_ENV,
+  NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ? `${process.env.NEXTAUTH_SECRET.substring(0, 10)}...` : 'NOT_FOUND',
+  JWT_SECRET: process.env.JWT_SECRET ? `${process.env.JWT_SECRET.substring(0, 10)}...` : 'NOT_FOUND',
+  ENV_PATH: path.resolve(__dirname, '../.env')
+});
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
-import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 
@@ -20,9 +36,6 @@ import healthRoutes from './routes/health';
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket/streamingHandler';
-
-// Load environment variables
-dotenv.config({ path: '../.env.local' });
 
 const app = express();
 const PORT = process.env.API_PORT || 4000;

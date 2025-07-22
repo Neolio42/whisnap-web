@@ -1,7 +1,7 @@
 import { BaseTranscriptionProvider, TranscriptionOptions } from './base';
 import { TranscriptionResult } from '../../../../shared/types';
+import { fetch } from 'undici';
 import FormData from 'form-data';
-import fetch from 'node-fetch';
 
 export class WhisperProvider extends BaseTranscriptionProvider {
   getApiKey(): string {
@@ -27,24 +27,43 @@ export class WhisperProvider extends BaseTranscriptionProvider {
     
     this.validateAudio(audio);
 
-    // Create form data for OpenAI API
-    const formData = new FormData();
-    formData.append('file', audio, {
-      filename: 'audio.wav',
-      contentType: 'audio/wav'
+    // Create multipart form data manually for better compatibility
+    const boundary = `----formdata-whisnap-${Date.now()}`;
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+    
+    let body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from(`Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n`),
+      Buffer.from(`Content-Type: audio/wav\r\n\r\n`),
+      audio,
+      Buffer.from(`\r\n--${boundary}\r\n`),
+      Buffer.from(`Content-Disposition: form-data; name="model"\r\n\r\n`),
+      Buffer.from(`whisper-1`),
+      Buffer.from(`\r\n--${boundary}\r\n`),
+      Buffer.from(`Content-Disposition: form-data; name="language"\r\n\r\n`),
+      Buffer.from(language),
+      Buffer.from(`\r\n--${boundary}\r\n`),
+      Buffer.from(`Content-Disposition: form-data; name="response_format"\r\n\r\n`),
+      Buffer.from(`json`),
+      Buffer.from(closeDelimiter)
+    ]);
+
+    console.log('🎵 Whisper API Debug:', {
+      audioSize: audio.length,
+      language,
+      model: 'whisper-1',
+      bodySize: body.length
     });
-    formData.append('model', 'whisper-1');
-    formData.append('language', language);
-    formData.append('response_format', 'verbose_json');
-    formData.append('timestamp_granularities[]', 'word');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
-        ...formData.getHeaders()
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length.toString()
       },
-      body: formData
+      body: body
     });
 
     if (!response.ok) {

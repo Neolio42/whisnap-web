@@ -74,7 +74,7 @@ export const analyticsRateLimit = rateLimit({
 export const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 500, // Start slowing down after 500 requests
-  delayMs: 500, // Add 500ms delay per request
+  delayMs: () => 500, // Add 500ms delay per request (new v2 format)
   maxDelayMs: 20000, // Max 20 second delay
   keyGenerator
 });
