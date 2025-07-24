@@ -3,6 +3,17 @@ import { TranscriptionResult } from '../../../../shared/types';
 import WebSocket from 'ws';
 import { fetch } from 'undici';
 
+interface StreamingSession {
+  ws: WebSocket;
+  sessionId: string;
+  userId: string;
+  onTranscript?: (transcript: any) => void;
+  onPartialTranscript?: (partial: any) => void;
+  onError?: (error: Error) => void;
+}
+
+const activeSessions = new Map<string, StreamingSession>();
+
 export class AssemblyAIProvider extends BaseTranscriptionProvider {
   getApiKey(): string {
     const key = process.env.ASSEMBLYAI_API_KEY;
@@ -191,6 +202,111 @@ export class AssemblyAIProvider extends BaseTranscriptionProvider {
       // Store WebSocket reference for sending audio data
       (options as any).websocket = ws;
     });
+  }
+
+  // New streaming methods for WebSocket handler using Universal Streaming API v3
+  async startStreaming(options: any): Promise<void> {
+    const { sessionId, userId, language = 'en', sampleRate = 16000, onTranscript, onPartialTranscript, onError, onReady } = options;
+    
+    console.log(`🎤 Starting AssemblyAI Universal Streaming session: ${sessionId}`);
+    
+    // Use new Universal Streaming API v3 endpoint
+    const connectionParams = new URLSearchParams({
+      sample_rate: sampleRate.toString(),
+      encoding: 'pcm_s16le',
+      format_turns: 'true'
+    });
+    
+    const ws = new WebSocket(`wss://streaming.assemblyai.com/v3/ws?${connectionParams}`, {
+      headers: {
+        'Authorization': this.getApiKey()
+      }
+    });
+
+    const session: StreamingSession = {
+      ws,
+      sessionId,
+      userId,
+      onTranscript,
+      onPartialTranscript,
+      onError
+    };
+
+    activeSessions.set(sessionId, session);
+
+    ws.on('open', () => {
+      console.log(`✅ AssemblyAI Universal Streaming connected for session: ${sessionId}`);
+      // Notify that we're ready to receive audio
+      onReady?.();
+    });
+
+    ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        
+        if (message.error) {
+          console.error('❌ AssemblyAI error:', message.error);
+          onError?.(new Error(`AssemblyAI error: ${message.error}`));
+          return;
+        }
+        
+        if (message.type === 'Turn') {
+          const transcript = message.transcript || '';
+          const isFormatted = message.turn_is_formatted;
+          const isEndOfTurn = message.end_of_turn;
+          
+          if (transcript && transcript.trim() && isEndOfTurn && isFormatted) {
+            onTranscript?.({ text: transcript, confidence: message.end_of_turn_confidence || 0 });
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error parsing AssemblyAI message:', error);
+        onError?.(new Error('Failed to parse response'));
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error(`❌ AssemblyAI WebSocket error for session ${sessionId}:`, error);
+      onError?.(error);
+      activeSessions.delete(sessionId);
+    });
+
+    ws.on('close', () => {
+      console.log(`🔌 AssemblyAI WebSocket closed for session: ${sessionId}`);
+      activeSessions.delete(sessionId);
+    });
+  }
+
+  async sendAudioData(sessionId: string, audioData: string): Promise<void> {
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    if (session.ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`WebSocket not ready for session ${sessionId}`);
+    }
+
+    const audioBuffer = Buffer.from(audioData, 'base64');
+    session.ws.send(audioBuffer);
+  }
+
+  async stopStreaming(sessionId: string): Promise<void> {
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      console.warn(`Session ${sessionId} not found for stopping`);
+      return;
+    }
+
+    console.log(`🛑 Stopping AssemblyAI Universal Streaming session: ${sessionId}`);
+    
+    if (session.ws.readyState === WebSocket.OPEN) {
+      // Send termination message for v3 API
+      session.ws.send(JSON.stringify({ type: 'Terminate' }));
+      session.ws.close();
+    }
+    
+    activeSessions.delete(sessionId);
   }
 
   private mapLanguageCode(language: string): string {

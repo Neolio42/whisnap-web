@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
 
@@ -26,6 +26,16 @@ export default function AdminPanel() {
   const [llmProvider, setLlmProvider] = useState('gpt-4o-mini');
   const [llmResult, setLlmResult] = useState<any>(null);
   const [llmLoading, setLlmLoading] = useState(false);
+
+  // Streaming transcription state
+  const [isRecording, setIsRecording] = useState(false);
+  const [streamTranscript, setStreamTranscript] = useState('');
+  const [streamStatus, setStreamStatus] = useState('Ready');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [streamProvider, setStreamProvider] = useState('assemblyai-streaming');
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const websocketRef = useRef<WebSocket | null>(null);
 
   // Admin access control - VERY restrictive
   const ADMIN_EMAIL = 'nedeliss@gmail.com';
@@ -105,6 +115,160 @@ export default function AdminPanel() {
     } finally {
       setLlmLoading(false);
     }
+  };
+
+  const startStreaming = async () => {
+    try {
+      setStreamStatus('Starting session...');
+      
+      // 1. Start streaming session
+      const token = await getAuthToken();
+      const response = await fetch('http://localhost:4000/v1/transcribe/stream/start', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          provider: streamProvider,
+          language: 'en',
+          sampleRate: 16000
+        })
+      });
+
+      const sessionData = await response.json();
+      setSessionId(sessionData.sessionId);
+      
+      // 2. Connect to WebSocket
+      const ws = new WebSocket('ws://localhost:4001');
+      websocketRef.current = ws;
+
+      ws.onopen = () => {
+        setStreamStatus('Authenticating...');
+        ws.send(JSON.stringify({
+          type: 'auth',
+          token: token
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+          case 'auth_success':
+            setStreamStatus('Starting transcription...');
+            ws.send(JSON.stringify({
+              type: 'start_transcription',
+              provider: streamProvider,
+              language: 'en',
+              sessionId: sessionData.sessionId
+            }));
+            break;
+            
+          case 'transcription_started':
+            setStreamStatus('Recording... Speak now!');
+            setStreamTranscript(''); // Clear previous transcript
+            startAudioRecording(sessionData.sessionId);
+            break;
+            
+          case 'transcript':
+            setStreamTranscript(prev => prev + ' ' + (message.data?.text || message.data || ''));
+            break;
+            
+          case 'error':
+            setStreamStatus(`Error: ${message.error}`);
+            break;
+        }
+      };
+
+    } catch (error) {
+      setStreamStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const startAudioRecording = async (currentSessionId: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      // Use Web Audio API to capture raw PCM data
+      const audioContext = new AudioContext({ sampleRate: 16000 });
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      processor.onaudioprocess = (e) => {
+        if (websocketRef.current?.readyState === WebSocket.OPEN && currentSessionId) {
+          const inputBuffer = e.inputBuffer;
+          const inputData = inputBuffer.getChannelData(0);
+          
+          // Convert float32 to int16 PCM
+          const pcmData = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          
+          // Convert to base64
+          const base64Audio = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+          
+          websocketRef.current.send(JSON.stringify({
+            type: 'audio_data',
+            sessionId: currentSessionId,
+            audioData: base64Audio
+          }));
+        }
+      };
+
+      // Store references for cleanup
+      (window as any).audioContext = audioContext;
+      (window as any).processor = processor;
+      (window as any).audioStream = stream;
+      
+      setIsRecording(true);
+      
+    } catch (error) {
+      setStreamStatus(`Microphone error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const stopStreaming = () => {
+    // Clean up Web Audio API resources
+    if ((window as any).processor) {
+      (window as any).processor.disconnect();
+      (window as any).processor = null;
+    }
+    
+    if ((window as any).audioContext) {
+      (window as any).audioContext.close();
+      (window as any).audioContext = null;
+    }
+    
+    if ((window as any).audioStream) {
+      (window as any).audioStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      (window as any).audioStream = null;
+    }
+    
+    if (websocketRef.current && sessionId) {
+      websocketRef.current.send(JSON.stringify({
+        type: 'stop_session',
+        sessionId: sessionId
+      }));
+      websocketRef.current.close();
+    }
+    
+    setIsRecording(false);
+    setStreamStatus('Stopped');
+    setSessionId(null);
   };
 
   const fetchDashboardData = async () => {
@@ -571,8 +735,68 @@ export default function AdminPanel() {
 
         {/* Transcription Tab */}
         {activeTab === 'transcription' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-6">Test Audio Transcription</h2>
+          <div className="space-y-6">
+            {/* Streaming Transcription */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-6">🎤 Streaming Transcription</h2>
+              
+              <div className="space-y-4">
+                {/* Provider Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Streaming Provider
+                  </label>
+                  <select
+                    value={streamProvider}
+                    onChange={(e) => setStreamProvider(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    disabled={isRecording}
+                  >
+                    <option value="assemblyai-streaming">AssemblyAI (Streaming)</option>
+                    <option value="deepgram-nova3">Deepgram Nova (Streaming)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Only streaming-capable providers shown</p>
+                </div>
+
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={isRecording ? stopStreaming : startStreaming}
+                    className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                      isRecording 
+                        ? 'bg-red-600 text-white hover:bg-red-700' 
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isRecording ? '🛑 Stop Recording' : '🎤 Start Recording'}
+                  </button>
+                  
+                  <div className={`px-3 py-1 rounded text-sm font-medium ${
+                    streamStatus.includes('Error') ? 'bg-red-100 text-red-800' :
+                    streamStatus.includes('Recording') ? 'bg-green-100 text-green-800' :
+                    'bg-blue-100 text-blue-800'
+                  }`}>
+                    {streamStatus}
+                  </div>
+                </div>
+
+                {streamTranscript && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded">
+                    <h4 className="text-sm font-medium text-green-800 mb-2">Transcript:</h4>
+                    <p className="text-green-700">{streamTranscript}</p>
+                  </div>
+                )}
+
+                {sessionId && (
+                  <div className="text-xs text-gray-500">
+                    Session ID: {sessionId}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* File Upload Transcription */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-6">📁 File Upload Transcription</h2>
             
             {/* Provider Selection */}
             <div className="mb-6">
@@ -622,6 +846,7 @@ export default function AdminPanel() {
                 </pre>
               </div>
             )}
+            </div>
           </div>
         )}
 

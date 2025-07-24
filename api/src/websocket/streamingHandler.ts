@@ -138,7 +138,7 @@ async function handleAuth(ws: WebSocketClient, payload: any) {
       throw new Error('Authentication token required');
     }
 
-    const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+    const JWT_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
     if (!JWT_SECRET) {
       throw new Error('JWT secret not configured');
     }
@@ -180,8 +180,10 @@ async function handleStartTranscription(ws: WebSocketClient, payload: any) {
       throw new Error('Not authenticated');
     }
 
-    const { provider = 'assemblyai', language, sampleRate = 16000 } = payload;
-    const sessionId = `transcribe_${ws.userId}_${Date.now()}`;
+    const { provider = 'assemblyai', language, sampleRate = 16000, sessionId } = payload;
+    
+    // Use provided session ID from HTTP endpoint, or create new one if not provided
+    const finalSessionId = sessionId || `transcribe_${ws.userId}_${Date.now()}`;
 
     const transcriptionProvider = getTranscriptionProvider(provider);
     
@@ -190,7 +192,7 @@ async function handleStartTranscription(ws: WebSocketClient, payload: any) {
     }
 
     const session: StreamingSession = {
-      id: sessionId,
+      id: finalSessionId,
       userId: ws.userId,
       type: 'transcription',
       provider,
@@ -199,19 +201,19 @@ async function handleStartTranscription(ws: WebSocketClient, payload: any) {
       options: { language, sampleRate }
     };
 
-    activeSessions.set(sessionId, session);
-    ws.sessionId = sessionId;
+    activeSessions.set(finalSessionId, session);
+    ws.sessionId = finalSessionId;
 
     // Initialize streaming with provider
     const streamOptions = {
       language,
       sampleRate,
       userId: ws.userId,
-      sessionId,
+      sessionId: finalSessionId,
       onTranscript: (transcript: any) => {
         ws.send(JSON.stringify({
           type: 'transcript',
-          sessionId,
+          sessionId: finalSessionId,
           data: transcript,
           timestamp: new Date().toISOString()
         }));
@@ -219,7 +221,7 @@ async function handleStartTranscription(ws: WebSocketClient, payload: any) {
       onPartialTranscript: (partial: any) => {
         ws.send(JSON.stringify({
           type: 'partial_transcript',
-          sessionId,
+          sessionId: finalSessionId,
           data: partial,
           timestamp: new Date().toISOString()
         }));
@@ -227,22 +229,24 @@ async function handleStartTranscription(ws: WebSocketClient, payload: any) {
       onError: (error: Error) => {
         ws.send(JSON.stringify({
           type: 'transcription_error',
-          sessionId,
+          sessionId: finalSessionId,
           error: error.message
         }));
+      },
+      onReady: () => {
+        // Only notify frontend when provider is actually ready
+        ws.send(JSON.stringify({
+          type: 'transcription_started',
+          sessionId: finalSessionId,
+          provider,
+          status: 'ready'
+        }));
+        console.log(`🎤 Transcription ready for session: ${finalSessionId}`);
       }
     };
 
     await transcriptionProvider.startStreaming?.(streamOptions);
-
-    ws.send(JSON.stringify({
-      type: 'transcription_started',
-      sessionId,
-      provider,
-      status: 'ready'
-    }));
-
-    console.log(`🎤 Started transcription session: ${sessionId}`);
+    console.log(`🎤 Started transcription session: ${finalSessionId}`);
 
   } catch (error) {
     console.error('❌ Failed to start transcription:', error);
@@ -267,8 +271,6 @@ async function handleAudioData(ws: WebSocketClient, payload: any) {
     }
 
     const transcriptionProvider = getTranscriptionProvider(session.provider);
-    
-    // Send audio data to provider
     await transcriptionProvider.sendAudioData?.(sessionId, audioData);
 
   } catch (error) {
@@ -413,21 +415,24 @@ async function saveSessionSummary(session: StreamingSession) {
       cost = 0.001; // Base cost for streaming
     }
 
-    await prisma.usage.create({
+    await prisma.userUsage.create({
       data: {
         userId: session.userId,
-        service: session.type,
+        serviceType: session.type,
         provider: session.provider,
-        cost: cost.toString(),
-        duration,
-        inputTokens: 0, // Would be calculated based on actual usage
-        outputTokens: 0,
-        status: 'completed',
-        metadata: {
-          sessionId: session.id,
-          type: 'streaming',
-          options: session.options
-        }
+        model: session.provider, // Use provider as model for streaming
+        inputTokens: session.type === 'transcription' ? null : 0,
+        outputTokens: session.type === 'transcription' ? null : 0,
+        audioSeconds: session.type === 'transcription' ? duration : null,
+        durationSeconds: duration,
+        inputCostUsd: null,
+        outputCostUsd: null,
+        totalCostUsd: cost,
+        requestSize: null,
+        quality: 'balanced',
+        language: session.options.language || 'en',
+        success: true,
+        errorMessage: null
       }
     });
 
