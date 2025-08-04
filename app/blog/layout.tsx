@@ -1,15 +1,13 @@
 import { Suspense } from "react";
-import HeaderBlog from "./_assets/components/HeaderBlog";
+import NavHeader from "@/components/NavHeader";
 import Footer from "@/components/Footer";
 
 export default async function LayoutBlog({ children }: { children: any }) {
   return (
-    <div>
-      <Suspense>
-        <HeaderBlog />
-      </Suspense>
+    <div className="min-h-screen bg-whisnap-bg-light dark:bg-whisnap-bg-dark">
+      <NavHeader variant="app" />
 
-      <main className="min-h-screen max-w-6xl mx-auto p-8">{children}</main>
+      <main className="min-h-screen max-w-6xl mx-auto p-8 pt-24">{children}</main>
 
       <div className="h-24" />
 

@@ -32,18 +32,18 @@ export const categories: categoryType[] = [
     titleShort: "Features",
     // The description of the category to display in the category page. Up to 160 characters.
     description:
-      "Here are the latest features we've added to ShipFast. I'm constantly improving our product to help you ship faster.",
+      "Here are the latest features we've added to Whisnap. I'm constantly improving our transcription app.",
     // A short version of the description above, only displayed in the <Header /> on mobile. Up to 60 characters.
-    descriptionShort: "Latest features added to ShipFast.",
+    descriptionShort: "Latest features added to Whisnap.",
   },
   {
     slug: categorySlugs.tutorial,
     title: "How Tos & Tutorials",
     titleShort: "Tutorials",
     description:
-      "Learn how to use ShipFast with these step-by-step tutorials. I'll show you how to ship faster and save time.",
+      "Learn how to use Whisnap with these step-by-step tutorials. I'll show you how to get the most from AI transcription.",
     descriptionShort:
-      "Learn how to use ShipFast with these step-by-step tutorials.",
+      "Learn how to use Whisnap with these step-by-step tutorials.",
   },
 ];
 
@@ -133,12 +133,12 @@ export const authors: authorType[] = [
     // The slug to use in the URL, from the authorSlugs object above.
     slug: authorSlugs.marc,
     // The name to display in the author's bio. Up to 60 characters.
-    name: "Marc Lou",
+    name: "Whisnap Team",
     // The job to display in the author's bio. Up to 60 characters.
-    job: "Maker of ByeDispute",
+    job: "AI Transcription Experts",
     // The description of the author to display in the author's bio. Up to 160 characters.
     description:
-      "Marc is a developer and an entrepreneur. He's built 20 startups in the last 3 years. 6 were profitable and 3 were acquired. He's currently building ByeDispute, the #1 Stripe Chargebacks Protection tool.",
+      "The Whisnap team is dedicated to making professional AI transcription accessible to everyone. We're building the future of speech-to-text technology.",
     // The avatar of the author to display in the author's bio and avatar badge. It's better to use a local image, but you can also use an external image (https://...)
     avatar: marcImg,
     // A list of social links to display in the author's bio.
@@ -200,12 +200,12 @@ const styles: {
 export const articles: articleType[] = [
   {
     // The unique slug to use in the URL. It's also used to generate the canonical URL.
-    slug: "introducing-supabase",
+    slug: "getting-started-with-whisnap",
     // The title to display in the article page (h1). Less than 60 characters. It's also used to generate the meta title.
-    title: "Introducing Supabase to ShipFast",
+    title: "Getting Started with Whisnap",
     // The description of the article to display in the article page. Up to 160 characters. It's also used to generate the meta description.
     description:
-      "Supabase is an open-source Firebase alternative. It's a great tool for building a backend for your app. It's now integrated with ShipFast!",
+      "Learn how to set up and use Whisnap for professional AI transcription. From local models to cloud AI integration.",
     // An array of categories of the article. It's used to generate the category badges, the category filter, and more.
     categories: [
       categories.find((category) => category.slug === categorySlugs.feature),
@@ -218,15 +218,15 @@ export const articles: articleType[] = [
       // The image to display in <CardArticle /> components.
       src: introducingSupabaseImg,
       // The relative URL of the same image to use in the Open Graph meta tags & the Schema Markup JSON-LD. It should be the same image as the src above.
-      urlRelative: "/blog/introducing-supabase/header.jpg",
-      alt: "Supabase and ShipFast logo combined",
+      urlRelative: "/blog/getting-started-with-whisnap/header.jpg",
+      alt: "Whisnap AI transcription setup guide",
     },
     // The actual content of the article that will be shown under the <h1> title in the article page.
     content: (
       <>
         <Image
           src={introducingSupabaseImg}
-          alt="Supabase and ShipFast logo combined"
+          alt="Whisnap AI transcription setup guide"
           width={700}
           height={500}
           priority={true}
@@ -234,55 +234,58 @@ export const articles: articleType[] = [
           placeholder="blur"
         />
         <section>
-          <h2 className={styles.h2}>Introduction</h2>
+          <h2 className={styles.h2}>Welcome to Whisnap</h2>
           <p className={styles.p}>
-            Supabase is an open-source Firebase alternative. It&apos;s a great
-            tool for building a backend for your app. It&apos;s now integrated
-            with ShipFast!
+            Whisnap is a professional AI transcription app for macOS that combines
+            local privacy with powerful cloud AI capabilities. Get started with
+            unlimited free transcription in minutes.
           </p>
         </section>
 
         <section>
-          <h3 className={styles.h3}>1. Create a supabase account</h3>
+          <h3 className={styles.h3}>1. Download and Install</h3>
           <p className={styles.p}>
-            First, go to{" "}
-            <a href="https://supabase.com/" className="link link-primary">
-              Supabase
-            </a>{" "}
-            and create an account. It&apos;s free for up to 10,000 rows per
-            table.
-            <br />
-            Then create a new project and a new table. You can use the following
-            SQL schema:
-          </p>
-
-          <pre className={styles.code}>
-            <code>
-              {`CREATE TABLE public.users (
-  id bigint NOT NULL DEFAULT nextval('users_id_seq'::regclass),
-  email text NOT NULL,
-  password text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT users_pkey PRIMARY KEY (id)
-);`}
-            </code>
-          </pre>
-        </section>
-
-        <section>
-          <h3 className={styles.h3}>2. Add your credentials to ShipFast</h3>
-          <p className={styles.p}>
-            Copy the <span className={styles.codeInline}>API URL</span> and{" "}
-            <span className={styles.codeInline}>API Key</span> from your
-            Supabase project settings and add them to your ShipFast project
-            settings. Add these files to your project:
+            First, download the free Whisnap app for macOS. The app includes
+            everything you need for professional transcription:
           </p>
 
           <ul className={styles.ul}>
-            <li className={styles.li}>.env.local</li>
-            <li className={styles.li}>.env.production</li>
+            <li className={styles.li}>Local Whisper AI models for privacy</li>
+            <li className={styles.li}>Real-time streaming transcription</li>
+            <li className={styles.li}>Unlimited usage with no restrictions</li>
+            <li className={styles.li}>File upload and export capabilities</li>
           </ul>
+        </section>
+
+        <section>
+          <h3 className={styles.h3}>2. Start Transcribing</h3>
+          <p className={styles.p}>
+            Once installed, you can immediately start using Whisnap&apos;s core features:
+          </p>
+
+          <ul className={styles.ul}>
+            <li className={styles.li}>
+              <span className={styles.codeInline}>Real-time transcription</span> - 
+              Speak and see your words appear instantly
+            </li>
+            <li className={styles.li}>
+              <span className={styles.codeInline}>File uploads</span> - 
+              Drag and drop audio files for batch processing
+            </li>
+            <li className={styles.li}>
+              <span className={styles.codeInline}>History management</span> - 
+              Access all your past transcriptions
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h3 className={styles.h3}>3. Optional: Add Cloud AI</h3>
+          <p className={styles.p}>
+            Want access to cloud AI models like GPT-4, Claude, or AssemblyAI? 
+            You can optionally upgrade to unlock additional features while keeping
+            all the free functionality intact.
+          </p>
         </section>
       </>
     ),

@@ -45,7 +45,7 @@ const ButtonAccount = () => {
     <Popover className="relative z-10">
       {({ open }) => (
         <>
-          <Popover.Button className="btn">
+          <Popover.Button className="bg-white dark:bg-gray-800 border-2 border-whisnap-surface-orange/30 hover:border-whisnap-accent text-whisnap-text-light dark:text-whisnap-text-dark font-system font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
             {session?.user?.image ? (
               <img
                 src={session?.user?.image}
@@ -56,13 +56,13 @@ const ButtonAccount = () => {
                 height={24}
               />
             ) : (
-              <span className="w-6 h-6 bg-base-300 flex justify-center items-center rounded-full shrink-0">
-                {session?.user?.name?.charAt(0) ||
-                  session?.user?.email?.charAt(0)}
+              <span className="w-6 h-6 bg-whisnap-accent text-white flex justify-center items-center rounded-full shrink-0 font-system font-semibold">
+                {(session?.user?.name?.charAt(0) ||
+                  session?.user?.email?.charAt(0))?.toUpperCase()}
               </span>
             )}
 
-            {session?.user?.name || "Account"}
+            {session?.user?.name?.split(' ')[0] || "Account"}
 
             {isLoading ? (
               <span className="loading loading-spinner loading-xs"></span>
@@ -92,10 +92,10 @@ const ButtonAccount = () => {
             leaveTo="transform scale-95 opacity-0"
           >
             <Popover.Panel className="absolute left-0 z-10 mt-3 w-screen max-w-[16rem] transform">
-              <div className="overflow-hidden rounded-xl shadow-xl ring-1 ring-base-content ring-opacity-5 bg-base-100 p-1">
+              <div className="overflow-hidden rounded-xl shadow-xl ring-1 ring-whisnap-surface-orange/30 bg-white dark:bg-gray-800 p-1">
                 <div className="space-y-0.5 text-sm">
                   <button
-                    className="flex items-center gap-2 hover:bg-base-300 duration-200 py-1.5 px-4 w-full rounded-lg font-medium"
+                    className="flex items-center gap-2 hover:bg-whisnap-surface-blue/50 dark:hover:bg-whisnap-surface-blue/20 duration-200 py-1.5 px-4 w-full rounded-lg font-system font-medium text-whisnap-text-light dark:text-whisnap-text-dark"
                     onClick={handleBilling}
                   >
                     <svg
@@ -113,7 +113,7 @@ const ButtonAccount = () => {
                     Billing
                   </button>
                   <button
-                    className="flex items-center gap-2 hover:bg-error/20 hover:text-error duration-200 py-1.5 px-4 w-full rounded-lg font-medium"
+                    className="flex items-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 duration-200 py-1.5 px-4 w-full rounded-lg font-system font-medium text-whisnap-text-light dark:text-whisnap-text-dark"
                     onClick={handleSignOut}
                   >
                     <svg

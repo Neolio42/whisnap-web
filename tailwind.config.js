@@ -7,6 +7,34 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        // Custom Whisnap theme colors
+        'whisnap': {
+          // Primary colors
+          'bg-light': '#FFFCF8',
+          'bg-dark': '#1A1A1A',
+          'text-light': '#3A2D28',
+          'text-dark': '#FFFFFF',
+          'accent': '#FF8C42',
+          
+          // Pastel surfaces
+          'surface-pink': '#FFE5E5',
+          'surface-blue': '#E5F3FF',
+          'surface-green': '#E5F9E5',
+          'surface-orange': '#FFF0E5',
+          'surface-peach': '#FFEDE5',
+          
+          // Darker versions for hover states
+          'surface-pink-hover': '#FFD1D1',
+          'surface-blue-hover': '#CCE7FF',
+          'surface-green-hover': '#CCF2CC',
+          'surface-orange-hover': '#FFE1CC',
+          'surface-peach-hover': '#FFDACC',
+        }
+      },
+      fontFamily: {
+        'system': ['-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+      },
       backgroundImage: {
         gradient:
           "linear-gradient(60deg, #f79533, #f37055, #ef4e7b, #a166ab, #5073b8, #1098ad, #07b39b, #6fba82)",
