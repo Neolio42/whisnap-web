@@ -1,6 +1,6 @@
-import prisma from '@/utils/database';
-import { UsageMetrics } from '../../../shared/types';
-import { logger } from '@/utils/logger';
+import prisma from '../utils/database';
+import { UsageMetrics } from '../shared/types/index';
+import { logger } from '../utils/logger';
 
 export class CostTracker {
   

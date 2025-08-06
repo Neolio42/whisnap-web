@@ -1,5 +1,5 @@
 import { BaseTranscriptionProvider, TranscriptionOptions } from './base';
-import { TranscriptionResult } from '../../../../shared/types';
+import { TranscriptionResult } from '../shared/types/index';
 import FormData from 'form-data';
 import { fetch } from 'undici';
 
