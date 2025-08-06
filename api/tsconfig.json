@@ -4,7 +4,6 @@
     "module": "commonjs",
     "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
-    "rootDir": "../",
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -37,7 +36,7 @@
   },
   "include": [
     "src/**/*",
-    "../shared/**/*"
+    "shared/**/*"
   ],
   "exclude": [
     "node_modules",

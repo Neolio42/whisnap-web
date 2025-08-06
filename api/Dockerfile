@@ -21,13 +21,15 @@ FROM base AS builder
 WORKDIR /app
 
 # Install ALL dependencies for build (including dev deps like TypeScript)
-COPY package.json package-lock.json* ./
+COPY api/package.json api/package-lock.json* ./
 RUN \
   if [ -f package-lock.json ]; then npm ci; \
   else echo "Lockfile not found." && exit 1; \
   fi
 
-COPY . .
+# Copy API source and shared types
+COPY api/ .
+COPY shared/ shared/
 
 # Generate Prisma Client
 RUN npx prisma generate

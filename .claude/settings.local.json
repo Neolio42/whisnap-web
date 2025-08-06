@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run test:integration:*)"
+      "Bash(npm run test:integration:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ls:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": []
   }

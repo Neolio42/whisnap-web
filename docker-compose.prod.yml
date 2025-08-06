@@ -68,8 +68,8 @@ services:
   # Express API
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./api/Dockerfile
     container_name: whisnap-api-prod
     environment:
       - NODE_ENV=production
