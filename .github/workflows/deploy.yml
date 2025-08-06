@@ -91,8 +91,8 @@ jobs:
             cp -r /root/whisnap-live /root/whisnap-backup-$(date +%Y%m%d-%H%M%S)
           fi
           
-          # Kill any orphaned containers that might be holding ports
-          docker ps -aq --filter "name=whisnap" | xargs docker rm -f || true
+          # Clean up only whisnap containers (leave n8n alone)
+          docker compose -f /root/whisnap-live/docker-compose.prod.yml down --remove-orphans || true
           docker network prune -f || true
           
           # Move new version to live
@@ -110,48 +110,12 @@ jobs:
           # Wait for database
           sleep 10
           
-          # Run database migrations
-          docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm web npx prisma migrate deploy
+          # Run database migrations (with proper environment)
+          docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm -e HOME=/tmp web npx prisma migrate deploy
           
-          # Start new containers (first deployment or blue-green)
-          echo "🚀 Starting new containers..."
-          
-          # Check if this is first deployment (no existing containers)
-          if ! docker ps -q --filter "name=whisnap.*web" | grep -q .; then
-            echo "First deployment - starting main containers"
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up web api -d
-          else
-            echo "Blue-green deployment - starting blue containers"
-            docker compose -f docker-compose.prod.yml --env-file .env.prod run -d --name whisnap-web-blue web
-            docker compose -f docker-compose.prod.yml --env-file .env.prod run -d --name whisnap-api-blue api
-            
-            # Wait for new containers
-            sleep 15
-            
-            # Health check blue containers
-            if docker exec whisnap-web-blue curl -f http://localhost:3000/api/health && \
-               docker exec whisnap-api-blue curl -f http://localhost:4000/v1/health; then
-              echo "✅ Blue containers healthy - switching traffic"
-              
-              # Switch network aliases
-              docker network connect whisnap-live_whisnap-network whisnap-web-blue --alias web-new
-              docker network connect whisnap-live_whisnap-network whisnap-api-blue --alias api-new
-              
-              # Remove old containers
-              docker compose -f docker-compose.prod.yml --env-file .env.prod stop web api || true
-              docker compose -f docker-compose.prod.yml --env-file .env.prod rm -f web api || true
-              
-              # Promote blue to main
-              docker rename whisnap-web-blue whisnap-web-main
-              docker rename whisnap-api-blue whisnap-api-main
-              docker network connect whisnap-live_whisnap-network whisnap-web-main --alias web
-              docker network connect whisnap-live_whisnap-network whisnap-api-main --alias api
-            else
-              echo "❌ Blue containers failed - keeping old containers"
-              docker rm -f whisnap-web-blue whisnap-api-blue || true
-              exit 1
-            fi
-          fi
+          # Start all services
+          echo "🚀 Starting Whisnap services..."
+          docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
           
           
           # Health check - FAIL deployment if containers don't start
