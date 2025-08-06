@@ -46,8 +46,8 @@ services:
       - EMAIL_SERVER=${EMAIL_SERVER}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - JWT_SECRET=${JWT_SECRET}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,9 +85,9 @@ services:
       # Optional
       - RESEND_API_KEY=${RESEND_API_KEY}
       - SENTRY_DSN=${SENTRY_DSN}
-    ports:
-      - "${API_PORT:-4000}:4000"
-      - "${WS_PORT:-4001}:4001"
+    expose:
+      - "4000"
+      - "4001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,15 +103,14 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Reverse Proxy (Optional - for production with SSL)
+  # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
+      - "8080:8080"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - web
@@ -119,8 +118,6 @@ services:
     restart: unless-stopped
     networks:
       - whisnap-network
-    profiles:
-      - nginx
 
   # Redis Cache (Optional - for session caching and rate limiting)
   redis:

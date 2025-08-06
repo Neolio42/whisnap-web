@@ -91,21 +91,17 @@ jobs:
             cp -r /root/whisnap-live /root/whisnap-backup-$(date +%Y%m%d-%H%M%S)
           fi
           
-          # Stop current services (except database)
-          cd /root/whisnap || true
-          docker compose -f docker-compose.prod.yml --env-file .env.prod stop web api || true
-          
           # Move new version to live
           rm -rf /root/whisnap-live || true
           mv /root/whisnap-deploy /root/whisnap-live
           cd /root/whisnap-live
           
-          # Build and deploy
-          echo "🚀 Building and deploying Whisnap..."
-          docker compose -f docker-compose.prod.yml --env-file .env.prod build
+          # Build new containers
+          echo "🚀 Building new containers..."
+          docker compose -f docker-compose.prod.yml --env-file .env.prod build web api
           
-          # Start database if not running
-          docker compose -f docker-compose.prod.yml --env-file .env.prod up postgres -d
+          # Ensure database and nginx are running
+          docker compose -f docker-compose.prod.yml --env-file .env.prod up postgres nginx -d
           
           # Wait for database
           sleep 10
@@ -113,8 +109,42 @@ jobs:
           # Run database migrations
           docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm web npx prisma migrate deploy
           
-          # Start all services
-          docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+          # Start new containers with -blue suffix (zero downtime)
+          echo "🚀 Starting new containers..."
+          docker compose -f docker-compose.prod.yml --env-file .env.prod run -d --name whisnap-web-blue web
+          docker compose -f docker-compose.prod.yml --env-file .env.prod run -d --name whisnap-api-blue api
+          
+          # Wait for new containers to be ready
+          sleep 15
+          
+          # Health check new containers
+          echo "🔍 Testing new containers..."
+          if ! docker exec whisnap-web-blue curl -f http://localhost:3000/api/health; then
+            echo "❌ New web container failed health check!"
+            docker rm -f whisnap-web-blue whisnap-api-blue || true
+            exit 1
+          fi
+          
+          if ! docker exec whisnap-api-blue curl -f http://localhost:4000/v1/health; then
+            echo "❌ New api container failed health check!"  
+            docker rm -f whisnap-web-blue whisnap-api-blue || true
+            exit 1
+          fi
+          
+          # Switch nginx to blue containers (zero downtime switch)
+          echo "🔄 Switching traffic to new containers..."
+          docker network connect whisnap-live_whisnap-network whisnap-web-blue --alias web-blue
+          docker network connect whisnap-live_whisnap-network whisnap-api-blue --alias api-blue
+          
+          # Remove old containers after successful switch
+          docker compose -f docker-compose.prod.yml --env-file .env.prod stop web api || true
+          docker compose -f docker-compose.prod.yml --env-file .env.prod rm -f web api || true
+          
+          # Rename blue containers to main
+          docker rename whisnap-web-blue whisnap-web-live
+          docker rename whisnap-api-blue whisnap-api-live
+          docker network connect whisnap-live_whisnap-network whisnap-web-live --alias web
+          docker network connect whisnap-live_whisnap-network whisnap-api-live --alias api
           
           # Health check - FAIL deployment if containers don't start
           sleep 30
