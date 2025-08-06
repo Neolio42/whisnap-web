@@ -1,10 +1,23 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
+let cachedKey: Buffer | null = null;
 
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
-  throw new Error('ENCRYPTION_KEY must be 64 characters (32 bytes hex)');
+function getEncryptionKey(): Buffer {
+  // Skip validation during Next.js build phase
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return Buffer.alloc(32); // dummy key for build
+  }
+  
+  if (cachedKey) return cachedKey;
+  
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || key.length !== 64) {
+    throw new Error('ENCRYPTION_KEY must be 64 characters (32 bytes hex)');
+  }
+  
+  cachedKey = Buffer.from(key, 'hex');
+  return cachedKey;
 }
 
 export class EncryptionService {
@@ -15,7 +28,7 @@ export class EncryptionService {
   static encryptApiKeys(apiKeys: Record<string, string>): string {
     try {
       const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'));
+      const cipher = crypto.createCipher(ALGORITHM, getEncryptionKey());
       
       let encrypted = cipher.update(JSON.stringify(apiKeys), 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -44,7 +57,7 @@ export class EncryptionService {
       const iv = Buffer.from(ivHex, 'hex');
       const authTag = Buffer.from(authTagHex, 'hex');
       
-      const decipher = crypto.createDecipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'));
+      const decipher = crypto.createDecipher(ALGORITHM, getEncryptionKey());
       decipher.setAuthTag(authTag);
       
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -63,7 +76,7 @@ export class EncryptionService {
   static encrypt(text: string): string {
     try {
       const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'));
+      const cipher = crypto.createCipher(ALGORITHM, getEncryptionKey());
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -91,7 +104,7 @@ export class EncryptionService {
       const iv = Buffer.from(ivHex, 'hex');
       const authTag = Buffer.from(authTagHex, 'hex');
       
-      const decipher = crypto.createDecipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'));
+      const decipher = crypto.createDecipher(ALGORITHM, getEncryptionKey());
       decipher.setAuthTag(authTag);
       
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');

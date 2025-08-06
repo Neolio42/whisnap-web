@@ -2,13 +2,11 @@
 # Production Docker Compose Configuration
 # =============================================================================
 
-version: '3.8'
 
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: whisnap-postgres-prod
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-whisnap_db}
       POSTGRES_USER: ${DATABASE_USER:-whisnap_user}
@@ -34,7 +32,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: whisnap-web-prod
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
@@ -70,7 +67,6 @@ services:
     build:
       context: .
       dockerfile: ./api/Dockerfile
-    container_name: whisnap-api-prod
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
@@ -110,7 +106,6 @@ services:
   # Nginx Reverse Proxy (Optional - for production with SSL)
   nginx:
     image: nginx:alpine
-    container_name: whisnap-nginx-prod
     ports:
       - "80:80"
       - "443:443"
@@ -130,7 +125,6 @@ services:
   # Redis Cache (Optional - for session caching and rate limiting)
   redis:
     image: redis:7-alpine
-    container_name: whisnap-redis-prod
     ports:
       - "${REDIS_PORT:-6379}:6379"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-whisnap_redis}
