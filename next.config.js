@@ -10,6 +10,10 @@ const nextConfig = {
       "logos-world.net",
     ],
   },
+  // Enable standalone output for Docker
+  output: 'standalone',
+  // Disable telemetry in production
+  telemetry: false,
 };
 
 module.exports = nextConfig;

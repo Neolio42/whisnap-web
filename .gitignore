@@ -27,6 +27,26 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.prod
+.env.production
+
+# Production secrets - NEVER commit these
+GITHUB_SECRETS.md
+DOCKER_README.md
+
+# Log files
+*.log
+/api/logs/
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Infrastructure files (server-specific)
+maintenance.html
+nginx-maintenance.conf
+docker-compose-n8n-simple.yml
 
 # vercel
 .vercel
@@ -36,7 +56,6 @@ yarn-error.log*
 next-env.d.ts
 
 # public
-public/robots.txt
 public/sitemap.xml
 public/sitemap-0.xml
 

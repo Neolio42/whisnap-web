@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /
+
+# Block search engines until ready for public launch

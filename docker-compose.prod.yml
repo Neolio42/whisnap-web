@@ -1,0 +1,166 @@
+# =============================================================================
+# Production Docker Compose Configuration
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: whisnap-postgres-prod
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-whisnap_db}
+      POSTGRES_USER: ${DATABASE_USER:-whisnap_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+    command: postgres -c 'max_connections=200' -c 'shared_buffers=256MB'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-whisnap_user} -d ${DATABASE_NAME:-whisnap_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whisnap-web-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_ID=${GOOGLE_ID}
+      - GOOGLE_SECRET=${GOOGLE_SECRET}
+      - STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_SERVER=${EMAIL_SERVER}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+    volumes:
+      - web_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Express API
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: whisnap-api-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=http://web:3000
+      - API_PORT=4000
+      - WS_PORT=4001
+      # AI Provider Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+      - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - REV_AI_API_KEY=${REV_AI_API_KEY}
+      # Optional
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - SENTRY_DSN=${SENTRY_DSN}
+    ports:
+      - "${API_PORT:-4000}:4000"
+      - "${WS_PORT:-4001}:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+    volumes:
+      - api_logs:/app/logs
+      - api_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Optional - for production with SSL)
+  nginx:
+    image: nginx:alpine
+    container_name: whisnap-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - web
+      - api
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+    profiles:
+      - nginx
+
+  # Redis Cache (Optional - for session caching and rate limiting)
+  redis:
+    image: redis:7-alpine
+    container_name: whisnap-redis-prod
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-whisnap_redis}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+    profiles:
+      - cache
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data_prod:
+    driver: local
+  web_uploads:
+    driver: local
+  api_logs:
+    driver: local
+  api_uploads:
+    driver: local
+  nginx_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  whisnap-network:
+    driver: bridge

@@ -1,0 +1,90 @@
+# =============================================================================
+# Local Testing Docker Compose Configuration
+# Use your existing environment variables for local container testing
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database (same as development)
+  postgres:
+    image: postgres:15-alpine
+    container_name: whisnap-postgres-test
+    environment:
+      POSTGRES_DB: whisnap_db
+      POSTGRES_USER: whisnap_user
+      POSTGRES_PASSWORD: whisnap_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - whisnap-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whisnap_user -d whisnap_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whisnap-web-test
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://whisnap_user:whisnap_password@postgres:5432/whisnap_db
+      - NEXTAUTH_URL=http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - whisnap-test-network
+    volumes:
+      - web_test_uploads:/app/uploads
+
+  # Express API
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: whisnap-api-test
+    env_file:
+      - ./api/.env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://whisnap_user:whisnap_password@postgres:5432/whisnap_db
+      - NEXTAUTH_URL=http://web:3000
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - whisnap-test-network
+    volumes:
+      - api_test_logs:/app/logs
+      - api_test_uploads:/app/uploads
+
+volumes:
+  postgres_test_data:
+    driver: local
+  web_test_uploads:
+    driver: local
+  api_test_logs:
+    driver: local
+  api_test_uploads:
+    driver: local
+
+networks:
+  whisnap-test-network:
+    driver: bridge
