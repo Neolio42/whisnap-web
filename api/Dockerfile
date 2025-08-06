@@ -26,9 +26,11 @@ RUN \
   else echo "Lockfile not found." && exit 1; \
   fi
 
-# Copy API source and shared types
-COPY api/ .
-COPY shared/ shared/
+# Copy API source files only
+COPY api/src/ ./src/
+COPY api/prisma/ ./prisma/
+COPY api/tsconfig.json ./
+COPY shared/ ./shared/
 
 # Generate Prisma Client
 RUN npx prisma generate
