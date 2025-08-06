@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticateUser } from '../middleware/auth';
 import { rateLimitTranscription } from '../middleware/rateLimit';
 import { trackUsage } from '../middleware/usage';
-import { TranscriptionProvider, TranscriptionResult } from '../shared/types/index';
+import { TranscriptionProvider, TranscriptionResult } from '../shared/types';
 import { 
   getTranscriptionProvider, 
   selectTranscriptionProvider,

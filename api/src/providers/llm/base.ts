@@ -1,4 +1,4 @@
-import { LLMMessage, LLMResult } from '../shared/types/index';
+import { LLMMessage, LLMResult } from '../shared/types';
 
 export interface LLMCompletionOptions {
   model: string;

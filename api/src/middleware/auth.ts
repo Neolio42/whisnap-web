@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { JWTPayload } from '../shared/types/index';
+import { JWTPayload } from '../shared/types';
 
 // Lazy load JWT_SECRET to ensure env vars are loaded
 const getJWTSecret = () => {

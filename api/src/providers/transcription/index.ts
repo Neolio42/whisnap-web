@@ -3,7 +3,7 @@ import { AssemblyAIProvider } from './assemblyai';
 import { DeepgramProvider } from './deepgram';
 import { WhisperProvider } from './whisper';
 import { BaseTranscriptionProvider } from './base';
-import { TranscriptionProvider } from '../shared/types/index';
+import { TranscriptionProvider } from '../shared/types';
 
 // Provider registry with lazy initialization
 const providerInstances: Partial<Record<TranscriptionProvider, BaseTranscriptionProvider>> = {};

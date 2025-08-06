@@ -2,7 +2,7 @@ import { OpenAIProvider } from './openai';
 import { AnthropicProvider } from './anthropic';
 import { GeminiProvider } from './gemini';
 import { BaseLLMProvider } from './base';
-import { LLMModel } from '../shared/types/index';
+import { LLMModel } from '../shared/types';
 
 // Provider registry with lazy initialization
 const llmInstances: Partial<Record<LLMModel, BaseLLMProvider>> = {};

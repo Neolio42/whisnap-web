@@ -1,4 +1,4 @@
-import { TranscriptionResult } from '../shared/types/index';
+import { TranscriptionResult } from '../shared/types';
 
 export interface TranscriptionOptions {
   audio: Buffer;

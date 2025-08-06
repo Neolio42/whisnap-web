@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-const result = dotenv.config({ path: path.resolve(__dirname, '../.env') });
+const result = dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 if (result.error) {
   console.error('❌ Error loading .env file:', result.error);
 }
@@ -12,7 +12,7 @@ console.log('🔍 Server Debug:', {
   NODE_ENV: process.env.NODE_ENV,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ? `${process.env.NEXTAUTH_SECRET.substring(0, 10)}...` : 'NOT_FOUND',
   JWT_SECRET: process.env.JWT_SECRET ? `${process.env.JWT_SECRET.substring(0, 10)}...` : 'NOT_FOUND',
-  ENV_PATH: path.resolve(__dirname, '../.env')
+  ENV_PATH: path.resolve(__dirname, '../../.env')
 });
 
 import express from 'express';

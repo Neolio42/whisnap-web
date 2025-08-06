@@ -1,5 +1,5 @@
 import { BaseTranscriptionProvider, TranscriptionOptions } from './base';
-import { TranscriptionResult } from '../shared/types/index';
+import { TranscriptionResult } from '../shared/types';
 import WebSocket from 'ws';
 import { fetch } from 'undici';
 
