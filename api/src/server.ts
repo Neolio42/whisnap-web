@@ -39,7 +39,7 @@ import { setupWebSocket } from './websocket/streamingHandler';
 
 const app = express();
 const PORT = process.env.API_PORT || 4000;
-const WS_PORT = process.env.WS_PORT || 4001;
+const WS_PORT = typeof process.env.WS_PORT === 'string' ? parseInt(process.env.WS_PORT, 10) : 4001;
 
 // Security middleware
 app.use(helmet({

@@ -36,21 +36,26 @@ const upload = multer({
 // GET /transcription/providers - List available providers
 router.get('/providers', authenticateUser, async (req, res) => {
   try {
-    const providers = Object.keys(TRANSCRIPTION_PROVIDERS).map(name => ({
-      name: name as TranscriptionProvider,
-      supportsStreaming: TRANSCRIPTION_PROVIDERS[name as TranscriptionProvider].supportsStreaming(),
-      supportedFormats: TRANSCRIPTION_PROVIDERS[name as TranscriptionProvider].getSupportedFormats(),
-      maxFileSize: TRANSCRIPTION_PROVIDERS[name as TranscriptionProvider].getMaxFileSize(),
-      features: TRANSCRIPTION_PROVIDERS[name as TranscriptionProvider].getFeatures()
-    }));
+    const providers = Object.keys(TRANSCRIPTION_PROVIDERS).map(name => {
+      const provider = TRANSCRIPTION_PROVIDERS[name as TranscriptionProvider]();
+      return {
+        name: name as TranscriptionProvider,
+        supportsStreaming: provider.supportsStreaming(),
+        supportedFormats: provider.getSupportedFormats?.() || [],
+        maxFileSize: provider.getMaxFileSize?.() || 25 * 1024 * 1024,
+        features: provider.getFeatures?.() || ['transcription']
+      };
+    });
 
     res.json({ providers });
+    return;
   } catch (error) {
     console.error('Failed to list transcription providers:', error);
     res.status(500).json({ 
       error: 'Failed to list providers',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
+    return;
   }
 });
 
@@ -84,10 +89,10 @@ router.post('/transcribe',
 
       // Auto-select provider if not specified
       const selectedProvider = provider || selectTranscriptionProvider({
-        fileSize: file.size,
+        streaming: false,
         duration: 0, // Will be detected by provider
         quality: 'balanced',
-        budget: req.user!.plan === 'free' ? 'low' : 'medium'
+        language: language || 'en'
       });
 
       const transcriptionProvider = getTranscriptionProvider(selectedProvider);
@@ -114,6 +119,7 @@ router.post('/transcribe',
       };
 
       res.json(response);
+      return;
 
     } catch (error) {
       console.error('Transcription failed:', error);
@@ -121,6 +127,7 @@ router.post('/transcribe',
         error: 'Transcription failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+      return;
     }
   }
 );
@@ -171,6 +178,7 @@ router.post('/stream/start',
         websocketUrl: `ws://localhost:4001/transcription/${sessionId}`,
         streamInfo
       });
+      return;
 
     } catch (error) {
       console.error('Failed to start streaming:', error);
@@ -178,6 +186,7 @@ router.post('/stream/start',
         error: 'Failed to start streaming',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+      return;
     }
   }
 );
@@ -190,6 +199,10 @@ router.get('/stream/:sessionId/status',
       const { sessionId } = req.params;
       const userId = req.user!.userId;
 
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
+
       // Verify session belongs to user
       if (!sessionId.includes(userId)) {
         return res.status(403).json({ error: 'Access denied to this session' });
@@ -197,12 +210,17 @@ router.get('/stream/:sessionId/status',
 
       // In a real implementation, you'd check the streaming session status
       // For now, return a mock status
+      const sessionParts = sessionId.split('_');
+      const timestampStr = sessionParts[2];
+      const timestamp = timestampStr ? parseInt(timestampStr) || Date.now() : Date.now();
+      
       res.json({
         sessionId,
         status: 'active',
-        duration: Date.now() - parseInt(sessionId.split('_')[2]),
+        duration: Date.now() - timestamp,
         transcriptCount: 0 // Would be tracked in real implementation
       });
+      return;
 
     } catch (error) {
       console.error('Failed to get stream status:', error);
@@ -210,6 +228,7 @@ router.get('/stream/:sessionId/status',
         error: 'Failed to get stream status',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+      return;
     }
   }
 );
@@ -221,6 +240,10 @@ router.post('/stream/:sessionId/stop',
     try {
       const { sessionId } = req.params;
       const userId = req.user!.userId;
+
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
 
       // Verify session belongs to user
       if (!sessionId.includes(userId)) {
@@ -241,6 +264,7 @@ router.post('/stream/:sessionId/stop',
         totalDuration: 0,
         totalCost: '0.00'
       });
+      return;
 
     } catch (error) {
       console.error('Failed to stop streaming:', error);
@@ -248,6 +272,7 @@ router.post('/stream/:sessionId/stop',
         error: 'Failed to stop streaming',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+      return;
     }
   }
 );

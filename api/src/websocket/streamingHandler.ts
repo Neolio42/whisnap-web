@@ -270,7 +270,7 @@ async function handleAudioData(ws: WebSocketClient, payload: any) {
       throw new Error('Transcription session not found');
     }
 
-    const transcriptionProvider = getTranscriptionProvider(session.provider);
+    const transcriptionProvider = getTranscriptionProvider(session.provider as any);
     await transcriptionProvider.sendAudioData?.(sessionId, audioData);
 
   } catch (error) {
@@ -373,7 +373,7 @@ async function handleStopSession(ws: WebSocketClient, payload: any) {
 
     // Stop the session based on type
     if (session.type === 'transcription') {
-      const transcriptionProvider = getTranscriptionProvider(session.provider);
+      const transcriptionProvider = getTranscriptionProvider(session.provider as any);
       await transcriptionProvider.stopStreaming?.(sessionId);
     }
 

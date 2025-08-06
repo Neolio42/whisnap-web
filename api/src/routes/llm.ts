@@ -19,10 +19,10 @@ const router = express.Router();
 router.get('/models', authenticateUser, async (req, res) => {
   try {
     const models = getAvailableModels();
-    res.json({ models });
+    return res.json({ models });
   } catch (error) {
     console.error('Failed to list LLM models:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to list models',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -46,7 +46,7 @@ router.post('/complete',
         quality,
         budget
       } = req.body;
-      const userId = req.user!.id;
+      const userId = (req.user as any).id;
 
       // Validate messages
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -106,7 +106,7 @@ router.post('/complete',
             })}\n\n`);
           },
           onStreamComplete: (result: LLMResult) => {
-            usage = result.usage;
+            usage = result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
             const duration = (Date.now() - startTime) / 1000;
             const cost = provider.calculateCost(selectedModel, usage.prompt_tokens, usage.completion_tokens);
 
@@ -124,12 +124,14 @@ router.post('/complete',
         };
 
         await provider.streamComplete?.(streamOptions);
+        return;
 
       } else {
         // Regular completion
         const result = await provider.complete(options);
         const duration = (Date.now() - startTime) / 1000;
-        const cost = provider.calculateCost(selectedModel, result.usage.prompt_tokens, result.usage.completion_tokens);
+        const usage = result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        const cost = provider.calculateCost(selectedModel, usage.prompt_tokens, usage.completion_tokens);
 
         const response: LLMResult = {
           ...result,
@@ -137,7 +139,7 @@ router.post('/complete',
           cost: cost.toFixed(6)
         };
 
-        res.json(response);
+        return res.json(response);
       }
 
     } catch (error) {
@@ -150,8 +152,9 @@ router.post('/complete',
           error: error instanceof Error ? error.message : 'Unknown error'
         })}\n\n`);
         res.end();
+        return;
       } else {
-        res.status(500).json({ 
+        return res.status(500).json({ 
           error: 'Completion failed',
           message: error instanceof Error ? error.message : 'Unknown error'
         });
@@ -178,7 +181,7 @@ router.post('/analyze-cost',
       const costComparison = calculateCostComparison(inputTokens, estimated_output_tokens);
       const cheapestModel = getCheapestModel(inputTokens, estimated_output_tokens);
 
-      res.json({
+      return res.json({
         inputTokens,
         outputTokens: estimated_output_tokens,
         costComparison,
@@ -193,7 +196,7 @@ router.post('/analyze-cost',
 
     } catch (error) {
       console.error('Cost analysis failed:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Cost analysis failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -222,7 +225,7 @@ router.post('/recommend-model',
 
       const modelInfo = getAvailableModels().find(m => m.name === recommendedModel);
 
-      res.json({
+      return res.json({
         recommendedModel,
         modelInfo,
         reasoning: {
@@ -236,7 +239,7 @@ router.post('/recommend-model',
 
     } catch (error) {
       console.error('Model recommendation failed:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Model recommendation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -257,7 +260,7 @@ router.post('/chat',
         stream = false,
         context = 'general'
       } = req.body;
-      const userId = req.user!.id;
+      const userId = (req.user as any).id;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: 'Messages array is required' });
@@ -311,7 +314,8 @@ router.post('/chat',
           },
           onStreamComplete: (result: LLMResult) => {
             const duration = (Date.now() - startTime) / 1000;
-            const cost = provider.calculateCost(selectedModel, result.usage.prompt_tokens, result.usage.completion_tokens);
+            const usage = result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+            const cost = provider.calculateCost(selectedModel, usage.prompt_tokens, usage.completion_tokens);
             
             res.write(`data: ${JSON.stringify({ 
               type: 'complete',
@@ -324,13 +328,15 @@ router.post('/chat',
         };
 
         await provider.streamComplete?.(streamOptions);
+        return;
 
       } else {
         const result = await provider.complete(options);
         const duration = (Date.now() - startTime) / 1000;
-        const cost = provider.calculateCost(selectedModel, result.usage.prompt_tokens, result.usage.completion_tokens);
+        const usage = result.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        const cost = provider.calculateCost(selectedModel, usage.prompt_tokens, usage.completion_tokens);
 
-        res.json({
+        return res.json({
           ...result,
           duration,
           cost: cost.toFixed(6)
@@ -339,7 +345,7 @@ router.post('/chat',
 
     } catch (error) {
       console.error('Chat completion failed:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         error: 'Chat completion failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });

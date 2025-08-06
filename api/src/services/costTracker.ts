@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger';
 export class CostTracker {
   
   // Track individual usage event
-  static async trackUsage(metrics: UsageMetrics) {
+  static async trackUsage(metrics: UsageMetrics): Promise<any> {
     try {
       // Store detailed usage record
       const usage = await prisma.userUsage.create({
@@ -222,8 +222,8 @@ export class CostCalculator {
     };
 
     const rate = rates[model] || rates['gpt-4o-mini'];
-    const inputCost = inputTokens * rate.input;
-    const outputCost = outputTokens * rate.output;
+    const inputCost = inputTokens * (rate?.input || 0);
+    const outputCost = outputTokens * (rate?.output || 0);
     
     return {
       inputCost,

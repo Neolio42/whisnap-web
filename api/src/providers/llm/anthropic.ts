@@ -183,7 +183,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       'claude-3-5-haiku': { input: 0.25 / 1000000, output: 1.25 / 1000000 }
     };
 
-    const rates = pricing[model] || pricing['claude-3-5-haiku'];
+    const rates = pricing[model] ?? pricing['claude-3-5-haiku']!;
     return (inputTokens * rates.input) + (outputTokens * rates.output);
   }
 

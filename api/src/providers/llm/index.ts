@@ -151,7 +151,14 @@ export function calculateCostComparison(inputTokens: number, outputTokens: numbe
 // Get cheapest model for a given token count
 export function getCheapestModel(inputTokens: number, outputTokens: number): LLMModel {
   const comparison = calculateCostComparison(inputTokens, outputTokens);
-  return comparison[0].model;
+  if (comparison.length === 0) {
+    throw new Error('No models available for cost comparison');
+  }
+  const cheapest = comparison[0];
+  if (!cheapest) {
+    throw new Error('No models available for cost comparison');
+  }
+  return cheapest.model;
 }
 
 // Get best value model (balance of cost and capability)
@@ -163,5 +170,6 @@ export function getBestValueModel(task: 'summary' | 'analysis' | 'creative' | 'c
     code: ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet']
   };
   
-  return taskModels[task][1] as LLMModel; // Second option is usually best value
+  const models = taskModels[task];
+  return (models[1] ?? models[0]) as LLMModel; // Second option is usually best value, fallback to first
 }

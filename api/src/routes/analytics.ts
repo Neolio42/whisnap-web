@@ -298,10 +298,10 @@ router.get('/usage', authenticateUser, async (req, res) => {
       take: 1000
     });
 
-    res.json(usageRecords);
+    return res.json(usageRecords);
   } catch (error) {
     console.error('Failed to get usage:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to get usage',
       message: error instanceof Error ? error.message : 'Unknown error'
     });

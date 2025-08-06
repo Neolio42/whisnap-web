@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
 router.get('/detailed', async (req, res) => {
   try {
     const checks = {
-      database: { status: 'unknown', latency: 0, error: null },
+      database: { status: 'unknown' as string, latency: 0, error: null as string | null },
       providers: {
         openai: { status: 'unknown', configured: false },
         anthropic: { status: 'unknown', configured: false },

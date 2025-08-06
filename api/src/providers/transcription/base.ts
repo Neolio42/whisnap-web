@@ -22,8 +22,18 @@ export abstract class BaseTranscriptionProvider {
   abstract getModelName(): string;
   abstract supportsStreaming(): boolean;
   
+  // Optional methods that providers can override
+  getSupportedFormats?(): string[];
+  getMaxFileSize?(): number;
+  getFeatures?(): string[];
+  
   // Optional: streaming transcription
   async streamTranscribe?(options: TranscriptionOptions): Promise<void>;
+  
+  // Optional: WebSocket streaming methods
+  async startStreaming?(options: any): Promise<void>;
+  async sendAudioData?(sessionId: string, audioData: string): Promise<void>;
+  async stopStreaming?(sessionId: string): Promise<void>;
   
   // Helper to validate audio format
   protected validateAudio(audio: Buffer): void {

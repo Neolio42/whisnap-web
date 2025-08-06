@@ -17,13 +17,14 @@ export const TRANSCRIPTION_PROVIDERS = {
 
 // Smart provider selection logic
 export function selectTranscriptionProvider(params: {
-  streaming: boolean;
+  streaming?: boolean;
+  fileSize?: number;
   duration?: number;
   quality?: 'fast' | 'balanced' | 'accurate';
   language?: string;
-  cost_limit?: number;
+  budget?: 'low' | 'medium' | 'high';
 }): TranscriptionProvider {
-  const { streaming, quality = 'balanced', language = 'en' } = params;
+  const { streaming = false, quality = 'balanced', language = 'en', budget = 'medium' } = params;
 
   // If streaming is required, filter to streaming providers
   if (streaming) {

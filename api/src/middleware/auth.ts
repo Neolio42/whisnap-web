@@ -92,29 +92,39 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
   }
 
   // Production: Use JWKS validation
-  jwt.verify(token, getKey, {
-    audience: 'whisnap-api',
-    issuer: process.env.NEXTAUTH_URL || 'http://localhost:3000',
-    algorithms: ['HS256', 'RS256']
-  }, (err, decoded: any) => {
-    if (err) {
-      console.error('JWT validation error:', err);
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid or expired token',
-        code: 'INVALID_TOKEN'
-      });
-    }
+  try {
+    jwt.verify(token, getKey, {
+      audience: 'whisnap-api',
+      issuer: process.env.NEXTAUTH_URL || 'http://localhost:3000',
+      algorithms: ['HS256', 'RS256']
+    }, (err, decoded: any) => {
+      if (err) {
+        console.error('JWT validation error:', err);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired token',
+          code: 'INVALID_TOKEN'
+        });
+      }
 
-    req.user = {
-      userId: decoded.userId || decoded.sub,
-      email: decoded.email,
-      plan: decoded.plan || 'free',
-      hasAccess: true
-    } as JWTPayload;
+      req.user = {
+        userId: decoded.userId || decoded.sub,
+        email: decoded.email,
+        plan: decoded.plan || 'free',
+        hasAccess: true
+      } as JWTPayload;
 
-    next();
-  });
+      next();
+      return;
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Authentication error',
+      code: 'AUTH_ERROR'
+    });
+  }
+  return;
 };
 
 export const requirePlan = (allowedPlans: Array<'free' | 'byok' | 'cloud'>) => {
@@ -136,6 +146,7 @@ export const requirePlan = (allowedPlans: Array<'free' | 'byok' | 'cloud'>) => {
     }
 
     next();
+    return;
   };
 };
 
@@ -157,6 +168,7 @@ export const requireAccess = (req: Request, res: Response, next: NextFunction) =
   }
 
   next();
+  return;
 };
 
 // Alias for backward compatibility

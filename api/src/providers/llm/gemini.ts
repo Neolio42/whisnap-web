@@ -209,7 +209,7 @@ export class GeminiProvider extends BaseLLMProvider {
       'gemini-1.5-flash': { input: 0.075 / 1000000, output: 0.30 / 1000000 }
     };
 
-    const rates = pricing[model] || pricing['gemini-1.5-flash'];
+    const rates = pricing[model] ?? pricing['gemini-1.5-flash']!;
     return (inputTokens * rates.input) + (outputTokens * rates.output);
   }
 
