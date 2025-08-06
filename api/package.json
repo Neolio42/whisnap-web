@@ -2,11 +2,11 @@
   "name": "whisnap-api",
   "version": "1.0.0",
   "description": "Whisnap Express API for AI processing and streaming",
-  "main": "dist/src/server.js",
+  "main": "dist/app/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/src/server.js",
+    "start": "node dist/app/src/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
