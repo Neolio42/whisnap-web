@@ -24,14 +24,16 @@
     "emitDecoratorMetadata": true,
     "moduleResolution": "node",
     "allowImportingTsExtensions": false,
-    "baseUrl": "./src",
+    "baseUrl": "./",
     "paths": {
-      "@/*": ["./*"],
-      "@/types/*": ["./types/*"],
-      "@/services/*": ["./services/*"],
-      "@/middleware/*": ["./middleware/*"],
-      "@/providers/*": ["./providers/*"],
-      "@/utils/*": ["./utils/*"]
+      "@/*": ["./src/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/services/*": ["./src/services/*"],
+      "@/middleware/*": ["./src/middleware/*"],
+      "@/providers/*": ["./src/providers/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "../../../../shared/types": ["./shared/types"],
+      "../../../shared/types": ["./shared/types"]
     }
   },
   "include": [
