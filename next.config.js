@@ -14,6 +14,23 @@ const nextConfig = {
   output: 'standalone',
   // Disable telemetry in production
   telemetry: false,
+  // Exclude API directory from Next.js compilation
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+    
+    // Exclude API directory from compilation
+    config.module.rules.push({
+      test: /\.(js|jsx|ts|tsx)$/,
+      exclude: /\/api\//,
+    });
+    
+    return config;
+  },
 };
 
 module.exports = nextConfig;

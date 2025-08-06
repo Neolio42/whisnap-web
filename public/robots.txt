@@ -1,4 +1,9 @@
+# *
 User-agent: *
-Disallow: /
+Allow: /
 
-# Block search engines until ready for public launch
+# Host
+Host: https://shipfa.st
+
+# Sitemaps
+Sitemap: https://shipfa.st/sitemap.xml
