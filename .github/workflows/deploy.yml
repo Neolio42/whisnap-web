@@ -22,10 +22,23 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
         
-    - name: Create production environment file
+        
+    - name: Deploy to VPS
       run: |
-        cat > .env.prod << EOF
-        # Database
+        # Copy files to VPS
+        rsync -avz --delete \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='.next' \
+          --exclude='dist' \
+          --exclude='coverage' \
+          --exclude='docs' \
+          . ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/whisnap-deploy/
+        
+        # Deploy on VPS
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          # Create production environment file on server (never commit to repo)
+          cat > /root/whisnap-deploy/.env.prod << ENVEOF
         DATABASE_NAME=whisnap_prod
         DATABASE_USER=whisnap_prod_user
         DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
@@ -68,22 +81,7 @@ jobs:
         API_PORT=4000
         WS_PORT=4001
         REDIS_PORT=6379
-        EOF
-        
-    - name: Deploy to VPS
-      run: |
-        # Copy files to VPS
-        rsync -avz --delete \
-          --exclude='.git' \
-          --exclude='node_modules' \
-          --exclude='.next' \
-          --exclude='dist' \
-          --exclude='coverage' \
-          --exclude='docs' \
-          . ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/whisnap-deploy/
-        
-        # Deploy on VPS
-        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+        ENVEOF
           cd /root/whisnap-deploy
           
           # Create backup of current deployment
