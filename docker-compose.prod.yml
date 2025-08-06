@@ -32,20 +32,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env.prod
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - GOOGLE_ID=${GOOGLE_ID}
-      - GOOGLE_SECRET=${GOOGLE_SECRET}
-      - STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - EMAIL_SERVER=${EMAIL_SERVER}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - JWT_SECRET=${JWT_SECRET}
     expose:
       - "3000"
     depends_on:
@@ -67,24 +58,14 @@ services:
     build:
       context: .
       dockerfile: ./api/Dockerfile
+    env_file:
+      - .env.prod
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
-      - JWT_SECRET=${JWT_SECRET}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=http://web:3000
       - API_PORT=4000
       - WS_PORT=4001
-      # AI Provider Keys
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
-      - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
-      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
-      - REV_AI_API_KEY=${REV_AI_API_KEY}
-      # Optional
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - SENTRY_DSN=${SENTRY_DSN}
     expose:
       - "4000"
       - "4001"
@@ -123,8 +104,8 @@ services:
   # Redis Cache (Optional - for session caching and rate limiting)
   redis:
     image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    expose:
+      - "6379"
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-whisnap_redis}
     volumes:
       - redis_data:/data
