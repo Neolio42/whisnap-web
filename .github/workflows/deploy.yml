@@ -116,10 +116,31 @@ jobs:
           # Start all services
           docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
           
-          # Health check
+          # Health check - FAIL deployment if containers don't start
           sleep 30
-          curl -f http://localhost:3000/api/health || echo "⚠️  Web health check failed"
-          curl -f http://localhost:4000/v1/health || echo "⚠️  API health check failed"
+          
+          # Check if containers are actually running
+          if ! docker compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+            echo "❌ No containers are running! Deployment failed."
+            docker compose -f docker-compose.prod.yml logs
+            exit 1
+          fi
+          
+          # Health check endpoints - FAIL if they don't respond
+          echo "🔍 Testing health endpoints..."
+          if ! curl -f http://localhost:3000/api/health; then
+            echo "❌ Web health check failed!"
+            docker compose -f docker-compose.prod.yml logs web
+            exit 1
+          fi
+          
+          if ! curl -f http://localhost:4000/v1/health; then
+            echo "❌ API health check failed!"
+            docker compose -f docker-compose.prod.yml logs api
+            exit 1
+          fi
+          
+          echo "✅ All health checks passed!"
           
           # Cleanup old images
           docker image prune -f
