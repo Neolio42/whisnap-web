@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Decrypt and mask keys for security
-    let maskedKeys = { openai: null, anthropic: null };
+    let maskedKeys: { openai: string | null; anthropic: string | null } = { openai: null, anthropic: null };
     
     if (user.apiKeys) {
       try {

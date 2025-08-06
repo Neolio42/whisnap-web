@@ -4,7 +4,9 @@
       "Bash(npm run test:integration:*)",
       "Bash(npx tsc:*)",
       "Bash(ls:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(docker build:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": []
   }

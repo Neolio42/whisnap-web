@@ -20,8 +20,30 @@ RUN \
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+
+# Install ALL dependencies for build (including dev deps like tailwindcss)
+COPY package.json package-lock.json* ./
+RUN \
+  if [ -f package-lock.json ]; then npm ci; \
+  else echo "Lockfile not found." && exit 1; \
+  fi
+
+# Copy Next.js app files (exclude api directory)
+COPY app/ ./app/
+COPY components/ ./components/
+COPY libs/ ./libs/
+COPY public/ ./public/
+COPY prisma/ ./prisma/
+COPY shared/ ./shared/
+COPY types/ ./types/
+COPY config.ts ./
+COPY middleware.ts ./
+COPY *.config.* ./
+COPY tsconfig.json ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
+COPY next-sitemap.config.js ./
+COPY next-env.d.ts ./
 
 # Generate Prisma Client
 RUN npx prisma generate

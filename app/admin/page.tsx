@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { getToken } from 'next-auth/jwt';
+// Timer type for intervals
+type TimerHandle = ReturnType<typeof setInterval>;
 
 export default function AdminPanel() {
   const { data: session, status } = useSession();
@@ -219,7 +221,8 @@ export default function AdminPanel() {
           }
           
           // Convert to base64
-          const base64Audio = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+          const uint8Array = new Uint8Array(pcmData.buffer);
+          const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(uint8Array)));
           
           websocketRef.current.send(JSON.stringify({
             type: 'audio_data',
@@ -318,7 +321,7 @@ export default function AdminPanel() {
 
   // Auto-load data when component mounts and set up refresh interval
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: TimerHandle;
 
     const initializeData = async () => {
       if (!isAdmin) return;

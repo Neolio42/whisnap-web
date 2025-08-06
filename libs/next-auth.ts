@@ -66,8 +66,6 @@ export const authOptions: NextAuthOptionsExtended = {
     strategy: "jwt",
   },
   jwt: {
-    // Use RS256 for Express API validation
-    signingKey: process.env.NEXTAUTH_SECRET,
     maxAge: 5 * 60, // 5 minutes for security
   },
   theme: {

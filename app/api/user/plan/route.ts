@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       take: 10
     });
 
-    const totalCost = recentUsage.reduce((sum, usage) => sum + usage.costUsd, 0);
+    const totalCost = recentUsage.reduce((sum, usage) => sum + usage.totalCostUsd, 0);
 
     return NextResponse.json({
       user: {

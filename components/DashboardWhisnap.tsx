@@ -135,7 +135,7 @@ const DashboardWhisnap = ({ user }: DashboardWhisnapProps) => {
           
           <div className="mt-6 p-4 bg-whisnap-surface-orange/30 rounded-lg">
             <p className="text-sm text-whisnap-text-light/80 dark:text-whisnap-text-dark/80 font-system text-center">
-              💡 <strong>Seriously, it's actually free.</strong> No trials, no limits, no catch. 
+              💡 <strong>Seriously, it&apos;s actually free.</strong> No trials, no limits, no catch. 
               Professional-grade transcription accessible to everyone.
             </p>
           </div>

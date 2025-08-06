@@ -55,7 +55,7 @@ const HeroWhisnap = () => {
               Download FREE App
             </button>
             <button className="bg-white dark:bg-gray-800 border-2 border-whisnap-accent text-whisnap-accent hover:bg-whisnap-accent hover:text-white font-system font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-200">
-              See What's Free
+              See What&apos;s Free
             </button>
           </div>
 
@@ -97,7 +97,7 @@ const HeroWhisnap = () => {
                 </div>
                 <div className="space-y-2">
                   <p className="text-whisnap-text-light dark:text-whisnap-text-dark font-system">
-                    "Welcome to the future of transcription. This is being transcribed in real-time using advanced AI models..."
+                    &quot;Welcome to the future of transcription. This is being transcribed in real-time using advanced AI models...&quot;
                   </p>
                   <div className="flex items-center gap-2 text-sm text-whisnap-text-light/60 dark:text-whisnap-text-dark/60">
                     <span>GPT-4o</span>

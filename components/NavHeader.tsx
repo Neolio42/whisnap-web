@@ -42,7 +42,7 @@ const NavHeader = ({ variant = 'homepage' }: NavHeaderProps) => {
           >
             Download
           </a>
-          <ButtonSignin text="Sign In" className="bg-whisnap-accent hover:bg-whisnap-accent/90 text-white font-system font-medium px-6 py-2 rounded-lg transition-colors" />
+          <ButtonSignin text="Sign In" extraStyle="bg-whisnap-accent hover:bg-whisnap-accent/90 text-white font-system font-medium px-6 py-2 rounded-lg transition-colors" />
         </div>
       </div>
     </header>

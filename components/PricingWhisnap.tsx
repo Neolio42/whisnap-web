@@ -50,7 +50,7 @@ const PricingWhisnap = () => {
                   </span>
                   <div className="text-left">
                     <div className="text-whisnap-text-light/60 dark:text-whisnap-text-dark/60 text-sm font-system">
-                      {plan.isMonthly ? '/month' : 'one-time'}
+                      /month
                     </div>
                   </div>
                 </div>
@@ -81,16 +81,7 @@ const PricingWhisnap = () => {
               </div>
 
               {/* CTA Button */}
-              <ButtonCheckout
-                priceId={plan.priceId}
-                className={`w-full py-4 px-6 rounded-xl font-system font-semibold text-lg transition-all duration-200 ${
-                  plan.isFeatured
-                    ? 'bg-whisnap-accent hover:bg-whisnap-accent/90 text-white shadow-lg hover:shadow-xl'
-                    : 'bg-whisnap-surface-orange hover:bg-whisnap-surface-orange-hover text-whisnap-text-light border-2 border-whisnap-surface-orange-hover'
-                }`}
-              >
-                {plan.isMonthly ? 'Support & Get Cloud AI' : 'Support & Get BYOK'}
-              </ButtonCheckout>
+              <ButtonCheckout priceId={plan.priceId} />
             </div>
           ))}
         </div>
