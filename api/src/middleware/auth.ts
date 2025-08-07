@@ -4,7 +4,7 @@ import { JWTPayload } from '@shared/types';
 
 // Lazy load JWT_SECRET to ensure env vars are loaded
 const getJWTSecret = () => {
-  const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || '';
+  const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || '';
   if (!secret) {
     throw new Error('NEXTAUTH_SECRET or JWT_SECRET must be set');
   }
