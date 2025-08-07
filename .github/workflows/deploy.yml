@@ -37,6 +37,8 @@ jobs:
         
         # Deploy on VPS
         ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          cd /root/whisnap-deploy
+          
           # Create production environment file on server (never commit to repo)
           cat > /root/whisnap-deploy/.env.prod << ENVEOF
         DATABASE_NAME=whisnap_prod
@@ -100,20 +102,20 @@ jobs:
           
           # Build new containers
           echo "🚀 Building new containers..."
-          docker compose -f infra/docker-compose.yml --env-file .env.prod build web api nginx
+          docker compose -f infra/docker-compose.yml build web api nginx
           
           # Ensure database is running first
-          docker compose -f infra/docker-compose.yml --env-file .env.prod up postgres -d
+          docker compose -f infra/docker-compose.yml up postgres -d
           
           # Wait for database
           sleep 10
           
           # Run database migrations (with proper environment)
-          docker compose -f infra/docker-compose.yml --env-file .env.prod run --rm -e HOME=/tmp web npx prisma migrate deploy
+          docker compose -f infra/docker-compose.yml run --rm -e HOME=/tmp web npx prisma migrate deploy
           
           # Start all services
           echo "🚀 Starting Whisnap services..."
-          docker compose -f infra/docker-compose.yml --env-file .env.prod up -d
+          docker compose -f infra/docker-compose.yml up -d
           
           
           # Health check - FAIL deployment if containers don't start
