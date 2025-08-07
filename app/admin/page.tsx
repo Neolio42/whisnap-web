@@ -41,6 +41,7 @@ export default function AdminPanel() {
 
   // Invitation state
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
 
@@ -133,7 +134,8 @@ export default function AdminPanel() {
       
       if (response.ok) {
         const data = await response.json();
-        setInvitations(data);
+        setInvitations(data.invitations || []);
+        setLeads(data.leads || []);
       }
     } catch (error) {
       console.error('Failed to fetch invitations:', error);
@@ -405,6 +407,13 @@ export default function AdminPanel() {
   useEffect(() => {
     if (status !== 'loading' && isAdmin && ['dashboard', 'users', 'usage'].includes(activeTab)) {
       fetchDashboardData();
+    }
+  }, [activeTab, isAdmin, status]);
+
+  // Load invitations when switching to invitations tab
+  useEffect(() => {
+    if (status !== 'loading' && isAdmin && activeTab === 'invitations') {
+      fetchInvitations();
     }
   }, [activeTab, isAdmin, status]);
 
@@ -790,6 +799,136 @@ export default function AdminPanel() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Invitations Tab */}
+        {activeTab === 'invitations' && (
+          <div className="space-y-6">
+            {/* Send Invitation */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-6">Send Invitation</h2>
+              
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={newInviteEmail}
+                    onChange={(e) => setNewInviteEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <button
+                  onClick={sendInvitation}
+                  disabled={!newInviteEmail.trim() || inviteLoading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {inviteLoading ? 'Sending...' : 'Send Invite'}
+                </button>
+              </div>
+            </div>
+
+            {/* Active Invitations */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Active Invitations</h2>
+                <button
+                  onClick={fetchInvitations}
+                  className="px-3 py-1 bg-blue-50 text-blue-600 rounded-md text-sm hover:bg-blue-100 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Email</th>
+                      <th className="text-left p-2">Status</th>
+                      <th className="text-left p-2">Expires</th>
+                      <th className="text-left p-2">Created</th>
+                      <th className="text-left p-2">Used By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invitations.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center p-8 text-gray-500">
+                          No invitations found
+                        </td>
+                      </tr>
+                    ) : (
+                      invitations.map((invite: any) => (
+                        <tr key={invite.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2">{invite.email}</td>
+                          <td className="p-2">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              invite.used ? 'bg-green-100 text-green-800' :
+                              new Date(invite.expiresAt) < new Date() ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {invite.used ? 'Used' : 
+                               new Date(invite.expiresAt) < new Date() ? 'Expired' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="p-2">{new Date(invite.expiresAt).toLocaleDateString()}</td>
+                          <td className="p-2">{new Date(invite.createdAt).toLocaleDateString()}</td>
+                          <td className="p-2">{invite.usedBy || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Waitlist (People who tried to sign up) */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-6">Waitlist (Unauthorized Sign-up Attempts)</h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full table-auto text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Email</th>
+                      <th className="text-left p-2">First Attempt</th>
+                      <th className="text-left p-2">Last Attempt</th>
+                      <th className="text-left p-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-center p-8 text-gray-500">
+                          No waitlist entries
+                        </td>
+                      </tr>
+                    ) : (
+                      leads.map((lead: any) => (
+                        <tr key={lead.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2">{lead.email}</td>
+                          <td className="p-2">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                          <td className="p-2">{new Date(lead.updatedAt).toLocaleDateString()}</td>
+                          <td className="p-2">
+                            <button
+                              onClick={() => setNewInviteEmail(lead.email)}
+                              className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100"
+                            >
+                              Invite
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
