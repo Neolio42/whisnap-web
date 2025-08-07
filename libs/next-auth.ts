@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptionsExtended = {
       });
 
       if (!invitation) {
-        // No valid invitation - save email as lead and redirect
+        // No valid invitation - save email as lead and reject signin
         try {
           await prisma.lead.upsert({
             where: { email: user.email },
@@ -112,7 +112,8 @@ export const authOptions: NextAuthOptionsExtended = {
         } catch (error) {
           console.error('Failed to save lead email:', error);
         }
-        return '/auth/invitation-required';
+        // Return false to reject signin - NextAuth will redirect to error page
+        return false;
       }
 
       // Valid invitation - mark as used
@@ -149,11 +150,14 @@ export const authOptions: NextAuthOptionsExtended = {
   jwt: {
     maxAge: 60 * 60, // 1 hour for better UX
   },
+  pages: {
+    error: '/auth/invitation-required', // Custom error page for rejected signins
+  },
   theme: {
     brandColor: config.colors.main,
     // Add you own logo below. Recommended size is rectangle (i.e. 200x50px) and show your logo + name.
     // It will be used in the login flow to display your logo. If you don't add it, it will look faded.
-    logo: `https://${config.domainName}/logoAndName.png`,
+    // logo: `https://${config.domainName}/logoAndName.png`,
   },
 };
 

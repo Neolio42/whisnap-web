@@ -1,33 +1,56 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+
 export default function InvitationRequired() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 text-center">
         <div className="mb-6">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
-            <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.96-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600">
+            <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
         </div>
         
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Invitation Required
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Whisnap is Invite-Only
         </h1>
         
-        <p className="text-gray-600 mb-6">
-          Whisnap is currently in private beta. You need an invitation to create an account.
+        <p className="text-lg text-gray-600 mb-6">
+          We're currently in private beta 🚀
         </p>
         
+        <div className="bg-blue-50 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-900 font-medium mb-2">
+            ✨ You're on the waitlist!
+          </p>
+          <p className="text-sm text-blue-700">
+            We've recorded your email and will send you an invitation when a spot opens up.
+          </p>
+        </div>
+        
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            If you believe you should have access, please contact the administrator.
+          <p className="text-xs text-gray-500">
+            Already have an invitation? Make sure you're using the same email address that received the invite.
           </p>
           
           <a
-            href="/api/auth/signin"
-            className="inline-block w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+            href="/"
+            className="inline-block w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 font-medium"
           >
-            Back to Sign In
+            Back to Home
+          </a>
+          
+          <a
+            href="/api/auth/signin"
+            className="inline-block w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          >
+            Try Again
           </a>
         </div>
       </div>
