@@ -19,6 +19,9 @@ RUN \
 FROM base AS builder
 WORKDIR /app
 
+# Install OpenSSL for Prisma in build stage
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
+
 # Install ALL dependencies for build (including dev deps like tailwindcss)
 COPY package.json package-lock.json* ./
 RUN \
@@ -60,8 +63,8 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Install OpenSSL for Prisma
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Install OpenSSL for Prisma and curl for health checks
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
