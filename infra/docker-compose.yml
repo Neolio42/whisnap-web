@@ -30,7 +30,7 @@ services:
   # Next.js Web Application
   web:
     build:
-      context: .
+      context: ../
       dockerfile: Dockerfile
     env_file:
       - .env.prod
@@ -56,7 +56,7 @@ services:
   # Express API
   api:
     build:
-      context: .
+      context: ../
       dockerfile: ./api/Dockerfile
     env_file:
       - .env.prod
@@ -79,19 +79,20 @@ services:
       - api_logs:/app/logs
       - api_uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/v1/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   # Nginx Reverse Proxy
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     depends_on:

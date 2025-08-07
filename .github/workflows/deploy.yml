@@ -90,7 +90,7 @@ jobs:
           fi
           
           # Clean up only whisnap containers (leave n8n alone)
-          docker compose -f /root/whisnap-live/docker-compose.prod.yml down --remove-orphans || true
+          docker compose -f /root/whisnap-live/infra/docker-compose.yml down --remove-orphans || true
           docker network prune -f || true
           
           # Move new version to live
@@ -100,29 +100,29 @@ jobs:
           
           # Build new containers
           echo "🚀 Building new containers..."
-          docker compose -f docker-compose.prod.yml --env-file .env.prod build web api
+          docker compose -f infra/docker-compose.yml --env-file .env.prod build web api nginx
           
-          # Ensure database and nginx are running
-          docker compose -f docker-compose.prod.yml --env-file .env.prod up postgres nginx -d
+          # Ensure database is running first
+          docker compose -f infra/docker-compose.yml --env-file .env.prod up postgres -d
           
           # Wait for database
           sleep 10
           
           # Run database migrations (with proper environment)
-          docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm -e HOME=/tmp web npx prisma migrate deploy
+          docker compose -f infra/docker-compose.yml --env-file .env.prod run --rm -e HOME=/tmp web npx prisma migrate deploy
           
           # Start all services
           echo "🚀 Starting Whisnap services..."
-          docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+          docker compose -f infra/docker-compose.yml --env-file .env.prod up -d
           
           
           # Health check - FAIL deployment if containers don't start
           sleep 30
           
           # Check if containers are actually running
-          if ! docker compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+          if ! docker compose -f infra/docker-compose.yml ps | grep -q "Up"; then
             echo "❌ No containers are running! Deployment failed."
-            docker compose -f docker-compose.prod.yml logs
+            docker compose -f infra/docker-compose.yml logs
             exit 1
           fi
           
@@ -130,13 +130,13 @@ jobs:
           echo "🔍 Testing health endpoints..."
           if ! curl -f http://localhost:3000/api/health; then
             echo "❌ Web health check failed!"
-            docker compose -f docker-compose.prod.yml logs web
+            docker compose -f infra/docker-compose.yml logs web
             exit 1
           fi
           
           if ! curl -f http://localhost:4000/v1/health; then
             echo "❌ API health check failed!"
-            docker compose -f docker-compose.prod.yml logs api
+            docker compose -f infra/docker-compose.yml logs api
             exit 1
           fi
           
@@ -146,7 +146,7 @@ jobs:
           docker image prune -f
           
           echo "✅ Deployment complete!"
-          docker compose -f docker-compose.prod.yml ps
+          docker compose -f infra/docker-compose.yml ps
         EOF
         
     - name: Notify deployment status
