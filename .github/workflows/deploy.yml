@@ -41,49 +41,49 @@ jobs:
           
           # Create production environment file on server (never commit to repo)
           cat > /root/whisnap-deploy/.env.prod << ENVEOF
-DATABASE_NAME=whisnap_prod
-DATABASE_USER=whisnap_prod_user
-DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-DATABASE_PORT=5432
-
-# Application Secrets
-ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
-
-# NextAuth
-NEXTAUTH_URL=https://whisnap.com
-
-# Google OAuth
-GOOGLE_ID=${{ secrets.GOOGLE_ID }}
-GOOGLE_SECRET=${{ secrets.GOOGLE_SECRET }}
-
-# Stripe
-STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
-STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-
-# Email
-RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-EMAIL_SERVER=${{ secrets.EMAIL_SERVER }}
-
-# AI Providers
-OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-GOOGLE_AI_API_KEY=${{ secrets.GOOGLE_AI_API_KEY }}
-ASSEMBLYAI_API_KEY=${{ secrets.ASSEMBLYAI_API_KEY }}
-DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
-REV_AI_API_KEY=${{ secrets.REV_AI_API_KEY }}
-
-# Optional
-SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-
-# Ports
-WEB_PORT=3000
-API_PORT=4000
-WS_PORT=4001
-REDIS_PORT=6379
-ENVEOF
+        DATABASE_NAME=whisnap_prod
+        DATABASE_USER=whisnap_prod_user
+        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        DATABASE_PORT=5432
+        
+        # Application Secrets
+        ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+        
+        # NextAuth
+        NEXTAUTH_URL=https://whisnap.com
+        
+        # Google OAuth
+        GOOGLE_ID=${{ secrets.GOOGLE_ID }}
+        GOOGLE_SECRET=${{ secrets.GOOGLE_SECRET }}
+        
+        # Stripe
+        STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
+        STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+        STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        
+        # Email
+        RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+        EMAIL_SERVER=${{ secrets.EMAIL_SERVER }}
+        
+        # AI Providers
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+        GOOGLE_AI_API_KEY=${{ secrets.GOOGLE_AI_API_KEY }}
+        ASSEMBLYAI_API_KEY=${{ secrets.ASSEMBLYAI_API_KEY }}
+        DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
+        REV_AI_API_KEY=${{ secrets.REV_AI_API_KEY }}
+        
+        # Optional
+        SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+        
+        # Ports
+        WEB_PORT=3000
+        API_PORT=4000
+        WS_PORT=4001
+        REDIS_PORT=6379
+        ENVEOF
           cd /root/whisnap-deploy
           
           # Create backup of current deployment
