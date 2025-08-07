@@ -214,8 +214,8 @@ jobs:
         # Test endpoints
         echo "🔍 Testing application endpoints..."
         
-        # API health check
-        if curl -f --max-time 10 http://localhost:4000/v1/health >/dev/null 2>&1; then
+        # API health check (through nginx)
+        if curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
           echo "✅ API endpoint responding"
         else
           echo "❌ API endpoint failed"
@@ -223,8 +223,8 @@ jobs:
           exit 1
         fi
         
-        # Web health check
-        if curl -f --max-time 10 http://localhost:3000/api/health >/dev/null 2>&1; then
+        # Web health check (through nginx)
+        if curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/health >/dev/null 2>&1; then
           echo "✅ Web endpoint responding"  
         else
           echo "❌ Web endpoint failed"
