@@ -116,6 +116,11 @@ jobs:
           # Run database migrations (with proper environment)
           docker compose -p whisnap-live -f infra/docker-compose.yml run --rm -e HOME=/tmp web npx prisma migrate deploy
           
+          # Copy SSL certificates to nginx directory
+          echo "🔐 Setting up SSL certificates..."
+          cp /etc/letsencrypt/live/whisnap.com/fullchain.pem /root/whisnap-live/infra/nginx/ssl/ || echo "Warning: SSL certificates not found"
+          cp /etc/letsencrypt/live/whisnap.com/privkey.pem /root/whisnap-live/infra/nginx/ssl/ || echo "Warning: SSL certificates not found"
+          
           # Start all services
           echo "🚀 Starting Whisnap services..."
           docker compose -p whisnap-live -f infra/docker-compose.yml up -d
@@ -142,6 +147,28 @@ jobs:
           if ! curl -f http://localhost:4000/v1/health; then
             echo "❌ API health check failed!"
             docker compose -p whisnap-live -f infra/docker-compose.yml logs api
+            exit 1
+          fi
+          
+          # Check nginx container status specifically
+          echo "🔍 Checking nginx container..."
+          if ! docker compose -p whisnap-live -f infra/docker-compose.yml ps nginx | grep -q "Up"; then
+            echo "❌ nginx container is not running!"
+            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
+            exit 1
+          fi
+          
+          # Test external HTTP/HTTPS access through nginx
+          echo "🔍 Testing external access through nginx..."
+          if ! curl -f -H "Host: whisnap.com" http://localhost/api/health >/dev/null 2>&1; then
+            echo "❌ HTTP access through nginx failed!"
+            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
+            exit 1
+          fi
+          
+          if ! curl -f -k -H "Host: whisnap.com" https://localhost/api/health >/dev/null 2>&1; then
+            echo "❌ HTTPS access through nginx failed!"
+            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
             exit 1
           fi
           
