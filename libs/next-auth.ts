@@ -45,6 +45,46 @@ export const authOptions: NextAuthOptionsExtended = {
   ...(process.env.DATABASE_URL && { adapter: PrismaAdapter(prisma) }),
 
   callbacks: {
+    signIn: async ({ user, account, profile }) => {
+      // Auto-link accounts with the same email address
+      if (account?.provider && user?.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+        
+        if (existingUser) {
+          // Check if this provider is already linked
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            },
+          });
+          
+          if (!existingAccount) {
+            // Link the new provider to the existing user
+            await prisma.account.create({
+              data: {
+                userId: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                refresh_token: account.refresh_token,
+                access_token: account.access_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+                session_state: account.session_state,
+              },
+            });
+          }
+        }
+      }
+      return true;
+    },
     session: async ({ session, token }) => {
       if (session?.user) {
         session.user.id = token.sub;
