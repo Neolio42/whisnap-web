@@ -68,7 +68,7 @@ export default function AdminPanel() {
       formData.append('provider', transcriptionProvider);
       formData.append('language', 'en');
 
-      const response = await fetch('http://localhost:4000/v1/transcribe/transcribe', {
+      const response = await fetch('/api/v1/transcribe/transcribe', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -93,7 +93,7 @@ export default function AdminPanel() {
     try {
       const token = await getAuthToken();
       
-      const response = await fetch('http://localhost:4000/v1/llm/complete', {
+      const response = await fetch('/api/v1/llm/complete', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -125,7 +125,7 @@ export default function AdminPanel() {
       
       // 1. Start streaming session
       const token = await getAuthToken();
-      const response = await fetch('http://localhost:4000/v1/transcribe/stream/start', {
+      const response = await fetch('/api/v1/transcribe/stream/start', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -142,7 +142,9 @@ export default function AdminPanel() {
       setSessionId(sessionData.sessionId);
       
       // 2. Connect to WebSocket
-      const ws = new WebSocket('ws://localhost:4001');
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      const ws = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
       websocketRef.current = ws;
 
       ws.onopen = () => {
@@ -281,13 +283,13 @@ export default function AdminPanel() {
       
       // Fetch all admin data
       const [usersRes, usageRes, statsRes] = await Promise.all([
-        fetch('http://localhost:4000/v1/analytics/users', {
+        fetch('/api/v1/analytics/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:4000/v1/analytics/usage', {
+        fetch('/api/v1/analytics/usage', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:4000/v1/analytics/stats', {
+        fetch('/api/v1/analytics/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
@@ -427,7 +429,7 @@ export default function AdminPanel() {
                     onClick={async () => {
                       try {
                         const token = await getAuthToken();
-                        const response = await fetch('http://localhost:4000/v1/analytics/sync-usage-counts', {
+                        const response = await fetch('/api/v1/analytics/sync-usage-counts', {
                           method: 'POST',
                           headers: { 'Authorization': `Bearer ${token}` }
                         });
