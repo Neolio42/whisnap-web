@@ -1,32 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import jwksClient from 'jwks-rsa';
 import { JWTPayload } from '@shared/types';
 
 // Lazy load JWT_SECRET to ensure env vars are loaded
 const getJWTSecret = () => {
-  return process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || '';
+  const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || '';
+  if (!secret) {
+    throw new Error('NEXTAUTH_SECRET or JWT_SECRET must be set');
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT secret must be at least 32 characters');
+  }
+  return secret;
 };
-
-// JWKS client for NextAuth public key validation
-const client = jwksClient({
-  jwksUri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/jwks`,
-  cache: true,
-  cacheMaxEntries: 5,
-  cacheMaxAge: 10 * 60 * 1000, // 10 minutes
-});
-
-function getKey(header: any, callback: any) {
-  client.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      console.error('JWKS error:', err);
-      callback(err);
-      return;
-    }
-    const signingKey = key?.getPublicKey();
-    callback(null, signingKey);
-  });
-}
 
 // Extend Express Request type
 declare global {
@@ -50,81 +36,44 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
   const token = authHeader.substring(7);
 
-  // For development/testing, use simple HMAC validation
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
-    try {
-      const secret = getJWTSecret();
-      console.log('🔐 Auth Debug:', {
-        environment: process.env.NODE_ENV,
-        hasSecret: !!secret,
-        secretLength: secret?.length,
-        tokenLength: token?.length
-      });
-      
-      const decoded = jwt.verify(token, secret) as any;
-      console.log('✅ Token decoded successfully:', { userId: decoded.userId || decoded.sub, email: decoded.email });
-      
-      req.user = {
-        userId: decoded.userId || decoded.sub,
-        email: decoded.email,
-        plan: decoded.plan || 'free',
-        hasAccess: true
-      } as JWTPayload;
-      
-      next();
-      return;
-    } catch (error) {
-      console.error('❌ JWT Validation Error:', error);
-      if (error instanceof jwt.TokenExpiredError) {
-        return res.status(401).json({
-          success: false,
-          error: 'Token expired',
-          code: 'TOKEN_EXPIRED'
-        });
-      }
-      
+  // Use simple HMAC validation (works for all environments)
+  try {
+    const secret = getJWTSecret();
+    
+    const decoded = jwt.verify(token, secret, { 
+      algorithms: ['HS256'],
+      audience: 'whisnap-api'
+    }) as any;
+    
+    // Validate required fields
+    if (!decoded.userId && !decoded.sub) {
+      throw new Error('Missing user ID in token');
+    }
+    
+    req.user = {
+      userId: decoded.userId || decoded.sub,
+      email: decoded.email,
+      plan: decoded.plan || 'free',
+      hasAccess: decoded.hasAccess ?? true
+    } as JWTPayload;
+    
+    next();
+    return;
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid token',
-        code: 'INVALID_TOKEN'
+        error: 'Token expired',
+        code: 'TOKEN_EXPIRED'
       });
     }
-  }
-
-  // Production: Use JWKS validation
-  try {
-    jwt.verify(token, getKey, {
-      audience: 'whisnap-api',
-      issuer: process.env.NEXTAUTH_URL || 'http://localhost:3000',
-      algorithms: ['HS256', 'RS256']
-    }, (err, decoded: any) => {
-      if (err) {
-        console.error('JWT validation error:', err);
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or expired token',
-          code: 'INVALID_TOKEN'
-        });
-      }
-
-      req.user = {
-        userId: decoded.userId || decoded.sub,
-        email: decoded.email,
-        plan: decoded.plan || 'free',
-        hasAccess: true
-      } as JWTPayload;
-
-      next();
-      return;
-    });
-  } catch (error) {
-    return res.status(500).json({
+    
+    return res.status(401).json({
       success: false,
-      error: 'Authentication error',
-      code: 'AUTH_ERROR'
+      error: 'Invalid token',
+      code: 'INVALID_TOKEN'
     });
   }
-  return;
 };
 
 export const requirePlan = (allowedPlans: Array<'free' | 'byok' | 'cloud'>) => {

@@ -106,7 +106,7 @@ export const authOptions: NextAuthOptionsExtended = {
     strategy: "jwt",
   },
   jwt: {
-    maxAge: 5 * 60, // 5 minutes for security
+    maxAge: 60 * 60, // 1 hour for better UX
   },
   theme: {
     brandColor: config.colors.main,
