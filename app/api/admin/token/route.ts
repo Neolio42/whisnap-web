@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         hasAccess: true,
         aud: 'whisnap-api'
       },
-      process.env.NEXTAUTH_SECRET!,
+      process.env.JWT_SECRET!,
       { expiresIn: '1h' }
     );
 
