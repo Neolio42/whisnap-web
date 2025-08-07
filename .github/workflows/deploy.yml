@@ -5,27 +5,30 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  DEPLOY_USER: ${{ secrets.VPS_USER }}
+  DEPLOY_HOST: ${{ secrets.VPS_HOST }}
+  COMPOSE_PROJECT_NAME: whisnap-live
+
 jobs:
   deploy:
+    name: Production Deployment
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
-    - name: Checkout code
+    - name: 📦 Checkout Repository
       uses: actions/checkout@v4
       
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Install SSH key
+    - name: 🔧 Configure SSH
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.VPS_SSH_KEY }}
         known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
         
-        
-    - name: Deploy to VPS
+    - name: 🚀 Sync Application Code
       run: |
-        # Copy files to VPS
+        echo "📦 Syncing code to deployment directory..."
         rsync -avz --delete \
           --exclude='.git' \
           --exclude='node_modules' \
@@ -33,160 +36,243 @@ jobs:
           --exclude='dist' \
           --exclude='coverage' \
           --exclude='docs' \
-          . ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/whisnap-deploy/
+          . ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/root/whisnap-deploy/
+        echo "✅ Code sync complete"
+
+    - name: 🔐 Setup Environment & SSL
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e  # Exit on any error
         
-        # Deploy on VPS
-        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-          cd /root/whisnap-deploy
-          
-          # Create production environment file on server (never commit to repo)
-          cat > /root/whisnap-deploy/.env.prod << ENVEOF
+        echo "🔐 Creating production environment file..."
+        cat > /root/whisnap-deploy/.env.prod << ENVEOF
         DATABASE_NAME=whisnap_prod
         DATABASE_USER=whisnap_prod_user
         DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
         DATABASE_PORT=5432
-        
-        # Application Secrets
         ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
         NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
-        
-        # NextAuth
         NEXTAUTH_URL=https://whisnap.com
-        
-        # Google OAuth
         GOOGLE_ID=${{ secrets.GOOGLE_ID }}
         GOOGLE_SECRET=${{ secrets.GOOGLE_SECRET }}
-        
-        # Stripe
         STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
         STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
         STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-        
-        # Email
         RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
         EMAIL_SERVER=${{ secrets.EMAIL_SERVER }}
-        
-        # AI Providers
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
         GOOGLE_AI_API_KEY=${{ secrets.GOOGLE_AI_API_KEY }}
         ASSEMBLYAI_API_KEY=${{ secrets.ASSEMBLYAI_API_KEY }}
         DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}
         REV_AI_API_KEY=${{ secrets.REV_AI_API_KEY }}
-        
-        # Optional
         SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-        
-        # Ports
         WEB_PORT=3000
         API_PORT=4000
         WS_PORT=4001
         REDIS_PORT=6379
         ENVEOF
-          cd /root/whisnap-deploy
-          
-          # Create backup of current deployment
-          if [ -d "/root/whisnap-live" ]; then
-            cp -r /root/whisnap-live /root/whisnap-backup-$(date +%Y%m%d-%H%M%S)
-          fi
-          
-          # Clean up only whisnap containers (leave n8n alone)
-          docker compose -p whisnap-live -f /root/whisnap-live/infra/docker-compose.yml down --remove-orphans || true
-          docker network prune -f || true
-          
-          # Move new version to live
-          rm -rf /root/whisnap-live || true
-          mv /root/whisnap-deploy /root/whisnap-live
-          cd /root/whisnap-live
-          
-          # Export environment variables for docker-compose (filter out comments)
-          export $(grep -v '^#' .env.prod | grep -v '^$' | xargs)
-          
-          # Build new containers
-          echo "🚀 Building new containers..."
-          docker compose -p whisnap-live -f infra/docker-compose.yml build web api nginx
-          
-          # Ensure database is running first
-          docker compose -p whisnap-live -f infra/docker-compose.yml up postgres -d
-          
-          # Wait for database
-          sleep 10
-          
-          # Run database migrations (with proper environment)
-          docker compose -p whisnap-live -f infra/docker-compose.yml run --rm -e HOME=/tmp web npx prisma migrate deploy
-          
-          # Copy SSL certificates to nginx directory
-          echo "🔐 Setting up SSL certificates..."
-          cp /etc/letsencrypt/live/whisnap.com/fullchain.pem /root/whisnap-live/infra/nginx/ssl/ || echo "Warning: SSL certificates not found"
-          cp /etc/letsencrypt/live/whisnap.com/privkey.pem /root/whisnap-live/infra/nginx/ssl/ || echo "Warning: SSL certificates not found"
-          
-          # Start all services
-          echo "🚀 Starting Whisnap services..."
-          docker compose -p whisnap-live -f infra/docker-compose.yml up -d
-          
-          
-          # Health check - FAIL deployment if containers don't start
-          sleep 30
-          
-          # Check if containers are actually running
-          if ! docker compose -p whisnap-live -f infra/docker-compose.yml ps | grep -q "Up"; then
-            echo "❌ No containers are running! Deployment failed."
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs
-            exit 1
-          fi
-          
-          # Health check endpoints - FAIL if they don't respond
-          echo "🔍 Testing health endpoints..."
-          if ! curl -f http://localhost:3000/api/health; then
-            echo "❌ Web health check failed!"
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs web
-            exit 1
-          fi
-          
-          if ! curl -f http://localhost:4000/v1/health; then
-            echo "❌ API health check failed!"
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs api
-            exit 1
-          fi
-          
-          # Check nginx container status specifically
-          echo "🔍 Checking nginx container..."
-          if ! docker compose -p whisnap-live -f infra/docker-compose.yml ps nginx | grep -q "Up"; then
-            echo "❌ nginx container is not running!"
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
-            exit 1
-          fi
-          
-          # Test external HTTP/HTTPS access through nginx
-          echo "🔍 Testing external access through nginx..."
-          if ! curl -f -H "Host: whisnap.com" http://localhost/api/health >/dev/null 2>&1; then
-            echo "❌ HTTP access through nginx failed!"
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
-            exit 1
-          fi
-          
-          if ! curl -f -k -H "Host: whisnap.com" https://localhost/api/health >/dev/null 2>&1; then
-            echo "❌ HTTPS access through nginx failed!"
-            docker compose -p whisnap-live -f infra/docker-compose.yml logs nginx
-            exit 1
-          fi
-          
-          echo "✅ All health checks passed!"
-          
-          # Cleanup old images
-          docker image prune -f
-          
-          echo "✅ Deployment complete!"
-          docker compose -p whisnap-live -f infra/docker-compose.yml ps
-        EOF
         
-    - name: Notify deployment status
+        echo "🔒 Verifying SSL certificates..."
+        if [ ! -f "/etc/letsencrypt/live/whisnap.com/fullchain.pem" ]; then
+          echo "❌ SSL certificate not found!"
+          exit 1
+        fi
+        
+        echo "📁 Ensuring SSL directory exists..."
+        mkdir -p /root/whisnap-deploy/infra/nginx/ssl/
+        
+        echo "🔐 Copying SSL certificates..."
+        cp /etc/letsencrypt/live/whisnap.com/fullchain.pem /root/whisnap-deploy/infra/nginx/ssl/
+        cp /etc/letsencrypt/live/whisnap.com/privkey.pem /root/whisnap-deploy/infra/nginx/ssl/
+        
+        echo "✅ SSL setup complete"
+        ls -la /root/whisnap-deploy/infra/nginx/ssl/
+        EOF
+
+    - name: 📦 Backup & Prepare Deployment
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e
+        
+        echo "💾 Creating deployment backup..."
+        if [ -d "/root/whisnap-live" ]; then
+          BACKUP_DIR="/root/whisnap-backup-$(date +%Y%m%d-%H%M%S)"
+          cp -r /root/whisnap-live "$BACKUP_DIR"
+          echo "✅ Backup created: $BACKUP_DIR"
+        fi
+        
+        echo "🧹 Stopping current services..."
+        cd /root/whisnap-live 2>/dev/null || true
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml down --remove-orphans || true
+        
+        echo "🔄 Moving new version to live..."
+        rm -rf /root/whisnap-live || true
+        mv /root/whisnap-deploy /root/whisnap-live
+        
+        echo "✅ Deployment prepared"
+        EOF
+
+    - name: 🏗️ Build Application Images
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e
+        cd /root/whisnap-live
+        
+        echo "🔧 Loading environment variables..."
+        export $(grep -v '^#' .env.prod | grep -v '^$' | xargs)
+        
+        echo "🏗️ Building Docker images..."
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml build --no-cache
+        
+        echo "✅ Build complete"
+        EOF
+
+    - name: 🗃️ Start Database & Migrations
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e
+        cd /root/whisnap-live
+        
+        export $(grep -v '^#' .env.prod | grep -v '^$' | xargs)
+        
+        echo "🗃️ Starting PostgreSQL..."
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml up postgres -d
+        
+        echo "⏳ Waiting for database to be ready..."
+        timeout 60 bash -c 'until docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml exec postgres pg_isready -U whisnap_prod_user -d whisnap_prod; do sleep 2; done'
+        
+        echo "📊 Running database migrations..."
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml run --rm -e HOME=/tmp web npx prisma migrate deploy
+        
+        echo "✅ Database ready"
+        EOF
+
+    - name: 🚀 Start Application Services
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e
+        cd /root/whisnap-live
+        
+        export $(grep -v '^#' .env.prod | grep -v '^$' | xargs)
+        
+        echo "🚀 Starting all services..."
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml up -d
+        
+        echo "✅ Services started"
+        EOF
+
+    - name: 🔍 Health Check & Verification
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        set -e
+        cd /root/whisnap-live
+        
+        echo "🔍 Performing health checks..."
+        
+        # Function to check container health
+        check_container_health() {
+          local service=$1
+          local max_attempts=60  # 5 minutes
+          local attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            local status=$(docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml ps $service --format "{{.State}}")
+            
+            echo "[$attempt/$max_attempts] $service status: $status"
+            
+            case "$status" in
+              *"Up"*|*"running"*)
+                echo "✅ $service is healthy"
+                return 0
+                ;;
+              *"Restarting"*|*"Exited"*)
+                echo "❌ $service is in failed state: $status"
+                docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml logs $service --tail=20
+                exit 1
+                ;;
+              *)
+                echo "⏳ $service is starting..."
+                ;;
+            esac
+            
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          
+          echo "❌ $service health check timeout"
+          exit 1
+        }
+        
+        # Check each service
+        check_container_health "postgres"
+        check_container_health "api"  
+        check_container_health "web"
+        check_container_health "nginx"
+        
+        # Test endpoints
+        echo "🔍 Testing application endpoints..."
+        
+        # API health check
+        if curl -f --max-time 10 http://localhost:4000/v1/health >/dev/null 2>&1; then
+          echo "✅ API endpoint responding"
+        else
+          echo "❌ API endpoint failed"
+          docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml logs api --tail=20
+          exit 1
+        fi
+        
+        # Web health check
+        if curl -f --max-time 10 http://localhost:3000/api/health >/dev/null 2>&1; then
+          echo "✅ Web endpoint responding"  
+        else
+          echo "❌ Web endpoint failed"
+          docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml logs web --tail=20
+          exit 1
+        fi
+        
+        # External access through nginx
+        if curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1; then
+          echo "✅ External HTTP access working"
+        else
+          echo "❌ External HTTP access failed"
+          docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml logs nginx --tail=20
+          exit 1
+        fi
+        
+        # HTTPS check
+        if curl -f --max-time 10 -k -H "Host: whisnap.com" https://localhost/ >/dev/null 2>&1; then
+          echo "✅ External HTTPS access working"
+        else
+          echo "❌ External HTTPS access failed"
+          docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml logs nginx --tail=20
+          exit 1
+        fi
+        
+        echo "🎉 All health checks passed!"
+        echo "📊 Final container status:"
+        docker compose -p ${{ env.COMPOSE_PROJECT_NAME }} -f infra/docker-compose.yml ps
+        EOF
+
+    - name: 🧹 Cleanup
+      if: success()
+      run: |
+        ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+        echo "🧹 Cleaning up unused Docker resources..."
+        docker image prune -f
+        docker volume prune -f
+        echo "✅ Cleanup complete"
+        EOF
+
+    - name: 📊 Deployment Status
       if: always()
       run: |
-        if [ ${{ job.status }} == 'success' ]; then
-          echo "✅ Deployment successful! https://whisnap.com is live"
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 Application available at: https://whisnap.com"
         else
-          echo "❌ Deployment failed! Check logs above"
+          echo "❌ Deployment failed!"
+          echo "🔍 Check the logs above for details"
           exit 1
         fi
