@@ -100,6 +100,9 @@ jobs:
           mv /root/whisnap-deploy /root/whisnap-live
           cd /root/whisnap-live
           
+          # Export environment variables for docker-compose
+          export $(cat .env.prod | xargs)
+          
           # Build new containers
           echo "🚀 Building new containers..."
           docker compose -f infra/docker-compose.yml build web api nginx
