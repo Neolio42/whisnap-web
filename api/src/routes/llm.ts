@@ -2,7 +2,7 @@ import express from 'express';
 import { authenticateUser } from '../middleware/auth';
 import { rateLimitLLM } from '../middleware/rateLimit';
 import { trackUsage } from '../middleware/usage';
-import { LLMModel, LLMMessage, LLMResult } from '../shared/types';
+import { LLMModel, LLMMessage, LLMResult } from '@shared/types';
 import { 
   getLLMProvider, 
   selectLLMModel, 

@@ -4,6 +4,9 @@
 
 FROM node:20-bookworm-slim AS base
 
+# Install OpenSSL for Prisma
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # Build stage
 FROM base AS builder
 WORKDIR /app
@@ -12,7 +15,7 @@ WORKDIR /app
 COPY api/package.json api/package-lock.json ./
 RUN npm ci
 
-# Copy source files
+# Copy source files and shared types
 COPY api/src/ ./src/
 COPY api/tsconfig.json ./
 COPY shared/ ./shared/
@@ -21,7 +24,14 @@ COPY api/prisma/ ./prisma/
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Build TypeScript
+# Build shared types first (outputs to shared/dist/)
+RUN cd shared && npx tsc
+
+# Fix paths for Docker build (shared is at ./shared not ../shared)
+RUN sed -i '/"references":/d' tsconfig.json && \
+    sed -i 's|"../shared/dist/\*"|"./shared/dist/*"|g' tsconfig.json
+
+# Build API (can now reference shared/dist/)  
 RUN npm run build
 
 # Production stage
@@ -36,6 +46,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/shared ./shared
+
+# Create an empty .env file (will be overwritten by GitHub Actions if needed)
+RUN touch .env
 
 # Create logs directory
 RUN mkdir -p logs

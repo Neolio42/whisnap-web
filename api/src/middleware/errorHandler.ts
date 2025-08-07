@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { APIError } from '../shared/types';
+import { APIError } from '@shared/types';
 import { logger } from '../utils/logger';
 
 export const errorHandler = (
