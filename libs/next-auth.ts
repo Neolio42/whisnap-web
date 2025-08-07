@@ -46,14 +46,22 @@ export const authOptions: NextAuthOptionsExtended = {
 
   callbacks: {
     signIn: async ({ user, account, profile }) => {
-      // Auto-link accounts with the same email address
-      if (account?.provider && user?.email) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-        
-        if (existingUser) {
-          // Check if this provider is already linked
+      if (!user?.email) return false;
+
+      // Admin always allowed (that's you!)
+      const ADMIN_EMAIL = 'nedeliss@gmail.com';
+      if (user.email === ADMIN_EMAIL) {
+        return true;
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+
+      if (existingUser) {
+        // Existing user - auto-link accounts with same email
+        if (account?.provider) {
           const existingAccount = await prisma.account.findUnique({
             where: {
               provider_providerAccountId: {
@@ -64,7 +72,6 @@ export const authOptions: NextAuthOptionsExtended = {
           });
           
           if (!existingAccount) {
-            // Link the new provider to the existing user
             await prisma.account.create({
               data: {
                 userId: existingUser.id,
@@ -82,7 +89,41 @@ export const authOptions: NextAuthOptionsExtended = {
             });
           }
         }
+        return true;
       }
+
+      // New user - check for valid invitation
+      const invitation = await prisma.invitation.findFirst({
+        where: {
+          email: user.email,
+          used: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (!invitation) {
+        // No valid invitation - save email as lead and redirect
+        try {
+          await prisma.lead.upsert({
+            where: { email: user.email },
+            update: { updatedAt: new Date() },
+            create: { email: user.email },
+          });
+        } catch (error) {
+          console.error('Failed to save lead email:', error);
+        }
+        return '/auth/invitation-required';
+      }
+
+      // Valid invitation - mark as used
+      await prisma.invitation.update({
+        where: { id: invitation.id },
+        data: {
+          used: true,
+          usedBy: user.id || 'pending', // Will be updated after user creation
+        },
+      });
+
       return true;
     },
     session: async ({ session, token }) => {

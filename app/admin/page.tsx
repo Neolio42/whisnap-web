@@ -8,7 +8,7 @@ type TimerHandle = ReturnType<typeof setInterval>;
 
 export default function AdminPanel() {
   const { data: session, status } = useSession();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'usage' | 'transcription' | 'llm'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'usage' | 'invitations' | 'transcription' | 'llm'>('dashboard');
   
   // Dashboard state
   const [users, setUsers] = useState<any[]>([]);
@@ -38,6 +38,11 @@ export default function AdminPanel() {
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
+
+  // Invitation state
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [newInviteEmail, setNewInviteEmail] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // Admin access control - VERY restrictive
   const ADMIN_EMAIL = 'nedeliss@gmail.com';
@@ -83,6 +88,55 @@ export default function AdminPanel() {
       setTranscriptionResult({ error: error.message });
     } finally {
       setTranscriptionLoading(false);
+    }
+  };
+
+  const sendInvitation = async () => {
+    if (!newInviteEmail.trim()) return;
+    
+    setInviteLoading(true);
+    try {
+      const token = await getAuthToken();
+      const response = await fetch('/api/admin/invitations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: newInviteEmail.trim()
+        })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        setNewInviteEmail('');
+        fetchInvitations(); // Refresh list
+        alert('Invitation sent successfully!');
+      } else {
+        alert(`Failed to send invitation: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Invitation error:', error);
+      alert('Failed to send invitation');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const fetchInvitations = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await fetch('/api/admin/invitations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setInvitations(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch invitations:', error);
     }
   };
 
@@ -389,6 +443,7 @@ export default function AdminPanel() {
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'users', label: 'Users' },
             { id: 'usage', label: 'Usage' },
+            { id: 'invitations', label: 'Invitations' },
             { id: 'transcription', label: 'Test Audio' },
             { id: 'llm', label: 'Test LLM' }
           ].map(tab => (
