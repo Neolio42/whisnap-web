@@ -1,8 +1,9 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function InvitationRequired() {
+function InvitationContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   
@@ -55,5 +56,17 @@ export default function InvitationRequired() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InvitationRequired() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">Loading...</div>
+      </div>
+    }>
+      <InvitationContent />
+    </Suspense>
   );
 }
