@@ -38,7 +38,7 @@ jobs:
         context: .
         file: Dockerfile
         push: true
-        tags: ghcr.io/Neolio42/whisnap-web:${{ github.sha }}
+        tags: ghcr.io/neolio42/whisnap-web:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -48,7 +48,7 @@ jobs:
         context: .
         file: api/Dockerfile
         push: true
-        tags: ghcr.io/Neolio42/whisnap-api:${{ github.sha }}
+        tags: ghcr.io/neolio42/whisnap-api:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
       
