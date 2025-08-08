@@ -256,7 +256,11 @@ fi
 
 # Test nginx config and reload
 log "Testing nginx configuration and reloading..."
-docker exec $NGINX_CONTAINER nginx -t && docker exec $NGINX_CONTAINER nginx -s reload
+docker exec $NGINX_CONTAINER nginx -t
+if [[ $? -eq 0 ]]; then
+    # Try reload first, if it fails try restart
+    docker exec $NGINX_CONTAINER nginx -s reload 2>/dev/null || docker restart $NGINX_CONTAINER
+fi
 
 if [[ $? -ne 0 ]]; then
     log_error "Nginx reload failed"
