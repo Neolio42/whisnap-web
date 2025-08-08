@@ -4,29 +4,6 @@
 
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: ${DATABASE_NAME:-whisnap_db}
-      POSTGRES_USER: ${DATABASE_USER:-whisnap_user}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
-    expose:
-      - "5432"
-    volumes:
-      - postgres_data_prod:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-    networks:
-      - whisnap-network
-    command: postgres -c 'max_connections=200' -c 'shared_buffers=256MB'
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-whisnap_user} -d ${DATABASE_NAME:-whisnap_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Next.js Web Application
   web:
     image: ghcr.io/neolio42/whisnap-web:${IMAGE_TAG}
@@ -34,12 +11,8 @@ services:
       - ../.env.prod
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
     expose:
       - "3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - whisnap-network
@@ -58,16 +31,12 @@ services:
       - ../.env.prod
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:-whisnap_db}
       - NEXTAUTH_URL=http://web:3000
       - API_PORT=4000
       - WS_PORT=4001
     expose:
       - "4000"
       - "4001"
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - whisnap-network
@@ -79,25 +48,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # Nginx Reverse Proxy (standalone for blue-green switching)
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/letsencrypt/live/whisnap.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
-      - /etc/letsencrypt/live/whisnap.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
-      - ./nginx/upstreams:/etc/nginx/upstreams:ro
-      - ./nginx/blue-green.conf:/etc/nginx/nginx.conf:ro
-      - nginx_logs:/var/log/nginx
-    restart: unless-stopped
-    networks:
-      - whisnap-network
-      - edge
 
   # Redis Cache (Optional - for session caching and rate limiting)
   redis:

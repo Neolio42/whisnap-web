@@ -1,0 +1,32 @@
+# Standalone Nginx Proxy for Blue-Green Deployment
+# This runs separately from blue/green stacks
+
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt/live/whisnap.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/letsencrypt/live/whisnap.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+      - ./nginx/upstreams:/etc/nginx/upstreams:rw
+      - ./nginx/blue-green.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    restart: unless-stopped
+    networks:
+      - whisnap-network
+      - edge
+
+volumes:
+  nginx_logs:
+    driver: local
+
+networks:
+  whisnap-network:
+    external: true
+  edge:
+    external: true

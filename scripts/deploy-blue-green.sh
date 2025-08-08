@@ -53,7 +53,7 @@ log "Using image tag: ${IMAGE_TAG}"
 # Determine current and target colors
 get_current_color() {
     # Check which upstream is currently active via nginx container
-    local current_upstream=$(docker exec nginx readlink -f /etc/nginx/upstreams/current.conf 2>/dev/null | grep -oE '(blue|green)' || echo "")
+    local current_upstream=$(docker exec nginx-proxy readlink -f /etc/nginx/upstreams/current.conf 2>/dev/null | grep -oE '(blue|green)' || echo "")
     if [[ -n "$current_upstream" ]]; then
         echo "$current_upstream"
     else
@@ -97,16 +97,33 @@ if [[ -n "$EXISTING_NGINX" ]]; then
     docker rm $EXISTING_NGINX
 fi
 
+# Start shared postgres if it's not running
+POSTGRES_RUNNING=$(docker ps --format '{{.Names}}' | grep postgres-shared | head -1)
+if [[ -z "$POSTGRES_RUNNING" ]]; then
+    log "Starting shared PostgreSQL..."
+    docker compose -f infra/postgres-shared.yml --env-file .env.prod up -d --wait postgres
+    
+    if [[ $? -ne 0 ]]; then
+        log_error "Failed to start shared PostgreSQL"
+    fi
+    
+    log_success "Shared PostgreSQL is running"
+else
+    log_warn "PostgreSQL already running: $POSTGRES_RUNNING"
+fi
+
 # Start nginx if it's not running (separate from blue/green stacks)
-NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep nginx-proxy | head -1)
 if [[ -z "$NGINX_RUNNING" ]]; then
     log "Starting nginx proxy..."
-    COMPOSE_PROJECT_NAME="whisnap-proxy" \
-    docker compose $COMPOSE_FILES up -d nginx
+    docker compose -f infra/nginx-proxy.yml up -d --build nginx
     
     if [[ $? -ne 0 ]]; then
         log_error "Failed to start nginx proxy"
     fi
+    
+    # Wait for nginx to be ready
+    sleep 2
     
     log_success "Nginx proxy is running"
 else
@@ -127,7 +144,7 @@ if [[ $? -ne 0 ]]; then
     log_error "Failed to pull images for ${TARGET_COLOR} stack"
 fi
 
-# Step 4: Start the target color stack
+# Step 4: Start the target color stack (web and api only, postgres is shared)
 log "Starting ${TARGET_COLOR} stack..."
 COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
 docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" up -d --wait web api
@@ -179,9 +196,9 @@ fi
 log "Switching nginx upstream to ${TARGET_COLOR}..."
 
 # Switch the symlink inside the nginx container
-NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
-if [[ -z "$NGINX_CONTAINER" ]]; then
-    log_error "Nginx container not found"
+NGINX_CONTAINER="nginx-proxy"
+if ! docker ps --format '{{.Names}}' | grep -q "^${NGINX_CONTAINER}$"; then
+    log_error "Nginx container not found: ${NGINX_CONTAINER}"
 fi
 
 docker exec $NGINX_CONTAINER ln -sf /etc/nginx/upstreams/${TARGET_COLOR}.conf /etc/nginx/upstreams/current.conf
