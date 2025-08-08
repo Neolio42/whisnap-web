@@ -161,11 +161,11 @@ jobs:
         cd /root/whisnap-prod
         
         echo "🚀 Executing blue-green deployment..."
-        chmod +x deploy-blue-green.sh
+        chmod +x scripts/deploy-blue-green.sh
         export IMAGE_TAG=${{ github.sha }}
         export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
         export GITHUB_ACTOR=${{ github.actor }}
-        ./deploy-blue-green.sh production
+        ./scripts/deploy-blue-green.sh production
         
         echo "✅ Blue-green deployment complete"
         EOF
