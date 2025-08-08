@@ -32,12 +32,12 @@ log_error() {
 }
 
 # Configuration
-COMPOSE_FILES="-f infra/docker-compose.yml"
+COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
 NGINX_UPSTREAMS_DIR="/etc/nginx/upstreams"
 PROJECT_NAME="whisnap"
 
 if [[ "$ENVIRONMENT" == "staging" ]]; then
-    COMPOSE_FILES="$COMPOSE_FILES -f infra/docker-compose.staging.yml"
+    COMPOSE_FILES="-f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file .env.staging"
     PROJECT_NAME="whisnap-stg"
     log "Deploying to STAGING environment"
 else
