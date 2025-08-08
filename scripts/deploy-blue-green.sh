@@ -89,12 +89,12 @@ log "Creating external network 'edge' if it doesn't exist..."
 docker network create edge 2>/dev/null || log_warn "Network 'edge' already exists"
 docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' already exists"
 
-# Check for existing nginx containers and clean up if needed
-EXISTING_NGINX=$(docker ps -q --filter "ancestor=*nginx*" --filter "publish=80")
-if [[ -n "$EXISTING_NGINX" ]]; then
-    log "Stopping existing nginx containers using port 80..."
-    docker stop $EXISTING_NGINX
-    docker rm $EXISTING_NGINX
+# Check for existing containers using port 80 and clean up if needed
+EXISTING_PORT_80=$(docker ps -q --filter "publish=80")
+if [[ -n "$EXISTING_PORT_80" ]]; then
+    log "Stopping existing containers using port 80..."
+    docker stop $EXISTING_PORT_80
+    docker rm $EXISTING_PORT_80
 fi
 
 # Start shared postgres if it's not running
