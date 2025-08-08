@@ -1,11 +1,4 @@
-'use client';
-
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-
-function InvitationContent() {
-  const searchParams = useSearchParams();
-  const error = searchParams.get('error');
+export default function InvitationRequired() {
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -23,21 +16,21 @@ function InvitationContent() {
         </h1>
         
         <p className="text-lg text-gray-600 mb-6">
-          We're currently in private beta 🚀
+          We&apos;re currently in private beta 🚀
         </p>
         
         <div className="bg-blue-50 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-900 font-medium mb-2">
-            ✨ You're on the waitlist!
+            ✨ You&apos;re on the waitlist!
           </p>
           <p className="text-sm text-blue-700">
-            We've recorded your email and will send you an invitation when a spot opens up.
+            We&apos;ve recorded your email and will send you an invitation when a spot opens up.
           </p>
         </div>
         
         <div className="space-y-4">
           <p className="text-xs text-gray-500">
-            Already have an invitation? Make sure you're using the same email address that received the invite.
+            Already have an invitation? Make sure you&apos;re using the same email address that received the invite.
           </p>
           
           <a
@@ -56,17 +49,5 @@ function InvitationContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function InvitationRequired() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">Loading...</div>
-      </div>
-    }>
-      <InvitationContent />
-    </Suspense>
   );
 }
