@@ -29,7 +29,7 @@ services:
 
   # Next.js Web Application
   web:
-    image: ghcr.io/whisnap/whisnap-web:${IMAGE_TAG}
+    image: ghcr.io/neolio42/whisnap-web:${IMAGE_TAG}
     env_file:
       - ../.env.prod
     environment:
@@ -53,7 +53,7 @@ services:
 
   # Express API
   api:
-    image: ghcr.io/whisnap/whisnap-api:${IMAGE_TAG}
+    image: ghcr.io/neolio42/whisnap-api:${IMAGE_TAG}
     env_file:
       - ../.env.prod
     environment:
