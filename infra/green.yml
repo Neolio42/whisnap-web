@@ -11,10 +11,10 @@ services:
       - whisnap-network
       - edge
 
+  # Exclude nginx from blue-green deployment
   nginx:
-    networks:
-      - whisnap-network
-      - edge
+    deploy:
+      replicas: 0
 
 networks:
   edge:
