@@ -1,14 +1,14 @@
 services:
   web:
     environment:
-      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres-shared-postgres-1:5432/${DATABASE_NAME:-whisnap_db}
+      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres-shared:5432/${DATABASE_NAME:-whisnap_db}
     networks:
       - whisnap-network
       - edge
 
   api:
     environment:
-      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres-shared-postgres-1:5432/${DATABASE_NAME:-whisnap_db}
+      - DATABASE_URL=postgresql://${DATABASE_USER:-whisnap_user}:${DATABASE_PASSWORD}@postgres-shared:5432/${DATABASE_NAME:-whisnap_db}
     networks:
       - whisnap-network
       - edge

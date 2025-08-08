@@ -139,6 +139,19 @@ else
     log_warn "PostgreSQL already running: $POSTGRES_RUNNING"
 fi
 
+# Ensure postgres is connected to target color network
+TARGET_NETWORK="${PROJECT_NAME}-${TARGET_COLOR}_whisnap-network"
+if ! docker network ls | grep -q "$TARGET_NETWORK"; then
+    log_warn "Target network $TARGET_NETWORK doesn't exist yet, will be created by docker compose"
+else
+    # Check if postgres is already connected to target network
+    POSTGRES_NETWORKS=$(docker inspect $POSTGRES_RUNNING --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null || echo "")
+    if [[ ! "$POSTGRES_NETWORKS" =~ "$TARGET_NETWORK" ]]; then
+        log "Connecting PostgreSQL to target network: $TARGET_NETWORK"
+        docker network connect "$TARGET_NETWORK" $POSTGRES_RUNNING 2>/dev/null || log_warn "Failed to connect postgres to $TARGET_NETWORK"
+    fi
+fi
+
 # Start nginx if it's not running (separate from blue/green stacks)
 NGINX_PROJECT_NAME="nginx-proxy"
 NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep "${NGINX_PROJECT_NAME}" | head -1)
