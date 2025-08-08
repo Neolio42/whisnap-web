@@ -83,22 +83,6 @@ jobs:
         cp /etc/letsencrypt/live/whisnap.com/fullchain.pem /root/whisnap-deploy/infra/nginx/ssl/
         cp /etc/letsencrypt/live/whisnap.com/privkey.pem /root/whisnap-deploy/infra/nginx/ssl/
         
-        echo "🔧 Setting up nginx upstreams directory..."
-        sudo mkdir -p /etc/nginx/upstreams
-        
-        # Copy upstream files if they don't exist
-        if [ ! -f "/etc/nginx/upstreams/blue.conf" ]; then
-          sudo cp /root/whisnap-deploy/infra/nginx/upstreams/blue.conf /etc/nginx/upstreams/
-        fi
-        if [ ! -f "/etc/nginx/upstreams/green.conf" ]; then
-          sudo cp /root/whisnap-deploy/infra/nginx/upstreams/green.conf /etc/nginx/upstreams/
-        fi
-        
-        # Set initial current.conf if it doesn't exist
-        if [ ! -L "/etc/nginx/upstreams/current.conf" ] && [ ! -f "/etc/nginx/upstreams/current.conf" ]; then
-          sudo ln -sf /etc/nginx/upstreams/blue.conf /etc/nginx/upstreams/current.conf
-        fi
-        
         echo "📁 Moving to production directory..."
         rm -rf /root/whisnap-prod || true
         mv /root/whisnap-deploy /root/whisnap-prod
@@ -112,9 +96,21 @@ jobs:
         echo "🌐 Creating external edge network..."
         docker network create edge 2>/dev/null || echo "✅ Network 'edge' already exists"
         
-        echo "🔧 Updating nginx configuration for blue-green..."
-        sudo cp /root/whisnap-prod/infra/nginx/blue-green.conf /etc/nginx/nginx.conf
-        sudo nginx -t && sudo systemctl reload nginx
+        echo "🔧 Setting up nginx upstreams directory..."
+        sudo mkdir -p /etc/nginx/upstreams
+        
+        # Copy upstream files if they don't exist
+        if [ ! -f "/etc/nginx/upstreams/blue.conf" ]; then
+          sudo cp /root/whisnap-prod/infra/nginx/upstreams/blue.conf /etc/nginx/upstreams/
+        fi
+        if [ ! -f "/etc/nginx/upstreams/green.conf" ]; then
+          sudo cp /root/whisnap-prod/infra/nginx/upstreams/green.conf /etc/nginx/upstreams/
+        fi
+        
+        # Set initial current.conf if it doesn't exist (don't test nginx yet)
+        if [ ! -L "/etc/nginx/upstreams/current.conf" ] && [ ! -f "/etc/nginx/upstreams/current.conf" ]; then
+          sudo ln -sf /etc/nginx/upstreams/blue.conf /etc/nginx/upstreams/current.conf
+        fi
         
         echo "✅ Blue-green network setup complete"
         EOF

@@ -129,7 +129,11 @@ if [[ "$ENVIRONMENT" == "production" ]]; then
     log_success "Database migrations completed"
 fi
 
-# Step 5: Switch nginx upstream
+# Step 5: Update nginx configuration for blue-green
+log "Updating nginx configuration for blue-green..."
+sudo cp infra/nginx/blue-green.conf /etc/nginx/nginx.conf
+
+# Step 6: Switch nginx upstream
 log "Switching nginx upstream to ${TARGET_COLOR}..."
 if [[ ! -d "$NGINX_UPSTREAMS_DIR" ]]; then
     log_error "Nginx upstreams directory not found: $NGINX_UPSTREAMS_DIR"
