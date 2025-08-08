@@ -1,20 +1,21 @@
 services:
   web:
     container_name: web-green
+    ports:
+      - "3002:3000"  # Green web on host port 3002
     networks:
       - whisnap-network
       - edge
 
   api:
     container_name: api-green
+    ports:
+      - "4002:4000"  # Green API on host port 4002
+      - "4102:4001"  # Green WebSocket on host port 4102
     networks:
       - whisnap-network
       - edge
 
-  # Exclude nginx from blue-green deployment
-  nginx:
-    deploy:
-      replicas: 0
 
 networks:
   edge:

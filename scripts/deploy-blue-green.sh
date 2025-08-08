@@ -33,6 +33,7 @@ log_error() {
 
 # Configuration
 COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
+NGINX_UPSTREAMS_DIR="/etc/nginx/upstreams"
 PROJECT_NAME="whisnap"
 
 if [[ "$ENVIRONMENT" == "staging" ]]; then
@@ -122,30 +123,34 @@ if [[ "$ENVIRONMENT" == "production" ]]; then
     log_success "Database migrations completed"
 fi
 
-# Step 5: Switch network aliases (zero-downtime flip)
-log "Switching network aliases to ${TARGET_COLOR}..."
+# Step 5: Update nginx configuration for blue-green
+log "Updating nginx configuration for blue-green..."
+sudo cp infra/nginx/blue-green.conf /etc/nginx/nginx.conf
 
-# Attach NEW containers to edge network with stable aliases
-log "Attaching ${TARGET_COLOR} containers with stable aliases..."
-docker network connect --alias current-web edge "web-${TARGET_COLOR}" 2>/dev/null || log_warn "web-${TARGET_COLOR} already connected"
-docker network connect --alias current-api edge "api-${TARGET_COLOR}" 2>/dev/null || log_warn "api-${TARGET_COLOR} already connected"  
-docker network connect --alias current-ws edge "api-${TARGET_COLOR}" 2>/dev/null || log_warn "api-${TARGET_COLOR} WS already connected"
-
-# Detach OLD containers from edge network (removes their aliases)
-if [[ "$CURRENT_COLOR" != "$TARGET_COLOR" ]] && docker ps --format '{{.Names}}' | grep -q "^web-${CURRENT_COLOR}$"; then
-    log "Removing ${CURRENT_COLOR} containers from edge network..."
-    docker network disconnect edge "web-${CURRENT_COLOR}" 2>/dev/null || log_warn "web-${CURRENT_COLOR} already disconnected"
-    docker network disconnect edge "api-${CURRENT_COLOR}" 2>/dev/null || log_warn "api-${CURRENT_COLOR} already disconnected"
+# Step 6: Switch nginx upstream
+log "Switching nginx upstream to ${TARGET_COLOR}..."
+if [[ ! -d "$NGINX_UPSTREAMS_DIR" ]]; then
+    log_error "Nginx upstreams directory not found: $NGINX_UPSTREAMS_DIR"
 fi
 
-log_success "Network aliases switched to ${TARGET_COLOR}"
+sudo ln -sf "$NGINX_UPSTREAMS_DIR/${TARGET_COLOR}.conf" "$NGINX_UPSTREAMS_DIR/current.conf"
 
-# Step 6: Health check through nginx (should route to new color via current-* aliases)
-log "Testing health through nginx after alias switch..."
+# Reload nginx
+log "Reloading nginx configuration..."
+sudo nginx -t && sudo nginx -s reload
+
+if [[ $? -ne 0 ]]; then
+    log_error "Nginx reload failed"
+fi
+
+log_success "Nginx switched to ${TARGET_COLOR} upstream"
+
+# Step 6: Health check through nginx (should route to new color)
+log "Testing health through nginx after upstream switch..."
 curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/health >/dev/null 2>&1 || log_error "Web health check failed"
 curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1 || log_error "API health check failed"
 
-log_success "Health checks passed after alias switch"
+log_success "Health checks passed after upstream switch"
 
 # Step 7: Stop the old color (if it exists and is different)
 if [[ "$CURRENT_COLOR" != "none" && "$CURRENT_COLOR" != "$TARGET_COLOR" && "$CURRENT_COLOR" != "unknown" ]]; then
