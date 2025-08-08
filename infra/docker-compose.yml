@@ -101,6 +101,7 @@ services:
     restart: unless-stopped
     networks:
       - whisnap-network
+      - edge
 
   # Redis Cache (Optional - for session caching and rate limiting)
   redis:
@@ -138,3 +139,5 @@ volumes:
 networks:
   whisnap-network:
     driver: bridge
+  edge:
+    external: true

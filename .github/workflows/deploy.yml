@@ -99,18 +99,8 @@ jobs:
         echo "🔧 Setting up nginx upstreams directory..."
         sudo mkdir -p /etc/nginx/upstreams
         
-        # Copy upstream files if they don't exist
-        if [ ! -f "/etc/nginx/upstreams/blue.conf" ]; then
-          sudo cp /root/whisnap-prod/infra/nginx/upstreams/blue.conf /etc/nginx/upstreams/
-        fi
-        if [ ! -f "/etc/nginx/upstreams/green.conf" ]; then
-          sudo cp /root/whisnap-prod/infra/nginx/upstreams/green.conf /etc/nginx/upstreams/
-        fi
-        
-        # Set initial current.conf if it doesn't exist (don't test nginx yet)
-        if [ ! -L "/etc/nginx/upstreams/current.conf" ] && [ ! -f "/etc/nginx/upstreams/current.conf" ]; then
-          sudo ln -sf /etc/nginx/upstreams/blue.conf /etc/nginx/upstreams/current.conf
-        fi
+        # Copy the stable upstream config (no more blue/green switching)
+        sudo cp /root/whisnap-prod/infra/nginx/upstreams/current.conf /etc/nginx/upstreams/
         
         echo "✅ Blue-green network setup complete"
         EOF
