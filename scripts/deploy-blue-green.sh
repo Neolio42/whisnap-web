@@ -84,9 +84,23 @@ fi
 log "Current active color: ${CURRENT_COLOR}"
 log "Deploying to: ${TARGET_COLOR}"
 
-# Step 1: Create external network if it doesn't exist
+# Step 1: Create external network and start nginx if it doesn't exist
 log "Creating external network 'edge' if it doesn't exist..."
 docker network create edge 2>/dev/null || log_warn "Network 'edge' already exists"
+docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' already exists"
+
+# Start nginx if it's not running (separate from blue/green stacks)
+if ! docker ps --format '{{.Names}}' | grep -q '^nginx$'; then
+    log "Starting nginx proxy..."
+    COMPOSE_PROJECT_NAME="whisnap-proxy" \
+    docker compose $COMPOSE_FILES up -d nginx
+    
+    if [[ $? -ne 0 ]]; then
+        log_error "Failed to start nginx proxy"
+    fi
+    
+    log_success "Nginx proxy is running"
+fi
 
 # Step 2: Login to GHCR (in case not already logged in)
 log "Ensuring Docker is logged into GHCR..."
@@ -154,7 +168,12 @@ fi
 log "Switching nginx upstream to ${TARGET_COLOR}..."
 
 # Switch the symlink inside the nginx container
-docker exec nginx ln -sf /etc/nginx/upstreams/${TARGET_COLOR}.conf /etc/nginx/upstreams/current.conf
+NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+if [[ -z "$NGINX_CONTAINER" ]]; then
+    log_error "Nginx container not found"
+fi
+
+docker exec $NGINX_CONTAINER ln -sf /etc/nginx/upstreams/${TARGET_COLOR}.conf /etc/nginx/upstreams/current.conf
 
 if [[ $? -ne 0 ]]; then
     log_error "Failed to switch nginx upstream"
@@ -162,7 +181,7 @@ fi
 
 # Test nginx config and reload
 log "Testing nginx configuration and reloading..."
-docker exec nginx nginx -t && docker exec nginx nginx -s reload
+docker exec $NGINX_CONTAINER nginx -t && docker exec $NGINX_CONTAINER nginx -s reload
 
 if [[ $? -ne 0 ]]; then
     log_error "Nginx reload failed"
@@ -173,8 +192,8 @@ log_success "Nginx switched to ${TARGET_COLOR} upstream"
 # Step 8: Health check through nginx (should route to new color)
 log "Testing health through nginx after upstream switch..."
 for i in {1..10}; do
-    if docker exec nginx curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1 && \
-       docker exec nginx curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
+    if docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1 && \
+       docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
         log_success "Health checks passed after upstream switch"
         break
     fi

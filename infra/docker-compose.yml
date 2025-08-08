@@ -80,7 +80,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Reverse Proxy
+  # Nginx Reverse Proxy (standalone for blue-green switching)
   nginx:
     build:
       context: ./nginx
@@ -94,9 +94,6 @@ services:
       - ./nginx/upstreams:/etc/nginx/upstreams:ro
       - ./nginx/blue-green.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
-    depends_on:
-      - web
-      - api
     restart: unless-stopped
     networks:
       - whisnap-network
