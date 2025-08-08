@@ -1,0 +1,35 @@
+# =============================================================================
+# Development Dockerfile for Express API
+# =============================================================================
+
+FROM node:20-bookworm-slim AS base
+
+# Install system dependencies
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install ALL dependencies (including dev dependencies)
+COPY api/package.json api/package-lock.json ./
+RUN npm ci
+
+# Copy all source files
+COPY api/ .
+COPY shared/ ./shared/
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+ENV NODE_ENV development
+
+# Create logs directory
+RUN mkdir -p logs
+
+EXPOSE 4000 4001
+
+# Health check for development
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:4000/v1/health || exit 1
+
+# Default dev command
+CMD ["npm", "run", "dev"]

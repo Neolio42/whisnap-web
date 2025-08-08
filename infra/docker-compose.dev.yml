@@ -1,0 +1,75 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: whisnap_dev
+      POSTGRES_USER: whisnap_dev
+      POSTGRES_PASSWORD: whisnap_dev
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5433:5432"  # Use different port for dev to avoid conflicts
+
+  web:
+    build:
+      context: ../
+      dockerfile: Dockerfile.dev
+    env_file: []  # Remove production env file
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://whisnap_dev:whisnap_dev@postgres:5432/whisnap_dev
+      NEXTAUTH_URL: http://localhost:3000
+      # Dev secrets - use dummy values for local development
+      JWT_SECRET: dev-jwt-secret-at-least-32-characters-long
+      NEXTAUTH_SECRET: dev-nextauth-secret-at-least-32-characters-long
+      GOOGLE_ID: your-google-id
+      GOOGLE_SECRET: your-google-secret
+    command: ["npm", "run", "dev"]
+    volumes:
+      - ../:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+
+  api:
+    build:
+      context: ../
+      dockerfile: api/Dockerfile.dev
+    env_file: []  # Remove production env file
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://whisnap_dev:whisnap_dev@postgres:5432/whisnap_dev
+      JWT_SECRET: dev-jwt-secret-at-least-32-characters-long
+      NEXTAUTH_URL: http://web:3000
+      API_PORT: 4000
+      WS_PORT: 4001
+    command: ["npm", "run", "dev"]
+    volumes:
+      - ../api:/app
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    develop:
+      watch:
+        - action: sync
+          path: ./api
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: ./api/package.json
+
+  nginx:
+    ports:
+      - "80:80"
+    # Optional for local - you can access services directly
+    profiles:
+      - nginx-dev

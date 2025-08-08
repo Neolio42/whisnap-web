@@ -1,0 +1,21 @@
+services:
+  web:
+    container_name: web-green
+    networks:
+      - whisnap-network
+      - edge
+
+  api:
+    container_name: api-green
+    networks:
+      - whisnap-network
+      - edge
+
+  nginx:
+    networks:
+      - whisnap-network
+      - edge
+
+networks:
+  edge:
+    external: true

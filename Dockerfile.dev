@@ -1,0 +1,33 @@
+# =============================================================================
+# Development Dockerfile for Next.js Web Application
+# =============================================================================
+
+FROM node:20-bookworm-slim AS base
+
+# Install system dependencies
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install ALL dependencies (including dev dependencies)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy all source files
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Disable telemetry
+ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV development
+
+EXPOSE 3000
+
+# Health check for development
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Default dev command
+CMD ["npm", "run", "dev"]
