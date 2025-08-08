@@ -120,7 +120,7 @@ done
 if [[ "$ENVIRONMENT" == "production" ]]; then
     log "Running database migrations..."
     COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
-    docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" exec -T web npx prisma migrate deploy
+    docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" exec -T -u root web npx prisma migrate deploy
     
     if [[ $? -ne 0 ]]; then
         log_error "Database migration failed"
