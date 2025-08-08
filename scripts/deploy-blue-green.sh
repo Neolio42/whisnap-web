@@ -89,8 +89,17 @@ log "Creating external network 'edge' if it doesn't exist..."
 docker network create edge 2>/dev/null || log_warn "Network 'edge' already exists"
 docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' already exists"
 
+# Check for existing nginx containers and clean up if needed
+EXISTING_NGINX=$(docker ps -q --filter "ancestor=*nginx*" --filter "publish=80")
+if [[ -n "$EXISTING_NGINX" ]]; then
+    log "Stopping existing nginx containers using port 80..."
+    docker stop $EXISTING_NGINX
+    docker rm $EXISTING_NGINX
+fi
+
 # Start nginx if it's not running (separate from blue/green stacks)
-if ! docker ps --format '{{.Names}}' | grep -q '^nginx$'; then
+NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+if [[ -z "$NGINX_RUNNING" ]]; then
     log "Starting nginx proxy..."
     COMPOSE_PROJECT_NAME="whisnap-proxy" \
     docker compose $COMPOSE_FILES up -d nginx
@@ -100,6 +109,8 @@ if ! docker ps --format '{{.Names}}' | grep -q '^nginx$'; then
     fi
     
     log_success "Nginx proxy is running"
+else
+    log_warn "Nginx already running: $NGINX_RUNNING"
 fi
 
 # Step 2: Login to GHCR (in case not already logged in)
