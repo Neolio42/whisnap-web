@@ -1,17 +1,12 @@
 services:
   web:
     container_name: web-blue
-    ports:
-      - "3001:3000"  # Blue web on host port 3001
     networks:
       - whisnap-network
       - edge
 
   api:
     container_name: api-blue
-    ports:
-      - "4001:4000"  # Blue API on host port 4001
-      - "4101:4001"  # Blue WebSocket on host port 4101
     networks:
       - whisnap-network
       - edge

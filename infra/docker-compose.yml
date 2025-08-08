@@ -29,9 +29,7 @@ services:
 
   # Next.js Web Application
   web:
-    build:
-      context: ../
-      dockerfile: Dockerfile
+    image: ghcr.io/whisnap/whisnap-web:${IMAGE_TAG}
     env_file:
       - ../.env.prod
     environment:
@@ -55,9 +53,7 @@ services:
 
   # Express API
   api:
-    build:
-      context: ../
-      dockerfile: ./api/Dockerfile
+    image: ghcr.io/whisnap/whisnap-api:${IMAGE_TAG}
     env_file:
       - ../.env.prod
     environment:
@@ -93,7 +89,10 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt/live/whisnap.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/letsencrypt/live/whisnap.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+      - ./nginx/upstreams:/etc/nginx/upstreams:ro
+      - ./nginx/blue-green.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - web

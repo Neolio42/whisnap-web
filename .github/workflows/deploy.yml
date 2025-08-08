@@ -19,15 +19,45 @@ jobs:
     - name: 📦 Checkout Repository
       uses: actions/checkout@v4
       
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔐 Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🏗️ Build and Push Web Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile
+        push: true
+        tags: ghcr.io/whisnap/whisnap-web:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: 🏗️ Build and Push API Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: api/Dockerfile
+        push: true
+        tags: ghcr.io/whisnap/whisnap-api:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+      
     - name: 🔧 Configure SSH
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.VPS_SSH_KEY }}
         known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
         
-    - name: 🚀 Sync Application Code
+    - name: 🚀 Sync Infrastructure Code
       run: |
-        echo "📦 Syncing code to production deploy directory..."
+        echo "📦 Syncing infrastructure code to production..."
         rsync -avz --delete \
           --exclude='.git' \
           --exclude='node_modules' \
@@ -35,8 +65,10 @@ jobs:
           --exclude='dist' \
           --exclude='coverage' \
           --exclude='docs' \
-          . ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/root/whisnap-deploy/
-        echo "✅ Code sync complete"
+          --exclude='Dockerfile*' \
+          --exclude='api/Dockerfile*' \
+          infra/ scripts/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/root/whisnap-deploy/
+        echo "✅ Infrastructure sync complete"
 
     - name: 🔐 Setup Production Environment & SSL
       run: |
@@ -44,6 +76,7 @@ jobs:
         set -e
         
         echo "🔐 Creating production environment file..."
+        install -m 600 /dev/null /root/whisnap-deploy/.env.prod
         cat > /root/whisnap-deploy/.env.prod << ENVEOF
         DATABASE_NAME=whisnap_prod
         DATABASE_USER=whisnap_prod_user
@@ -73,19 +106,19 @@ jobs:
         REDIS_PORT=6379
         ENVEOF
         
-        echo "🔒 Setting up SSL certificates..."
+        echo "🔒 Verifying SSL certificates..."
         if [ ! -f "/etc/letsencrypt/live/whisnap.com/fullchain.pem" ]; then
           echo "❌ SSL certificate not found!"
           exit 1
         fi
         
-        mkdir -p /root/whisnap-deploy/infra/nginx/ssl/
-        cp /etc/letsencrypt/live/whisnap.com/fullchain.pem /root/whisnap-deploy/infra/nginx/ssl/
-        cp /etc/letsencrypt/live/whisnap.com/privkey.pem /root/whisnap-deploy/infra/nginx/ssl/
-        
         echo "📁 Moving to production directory..."
         rm -rf /root/whisnap-prod || true
         mv /root/whisnap-deploy /root/whisnap-prod
+        
+        # Secure the environment file
+        chown root:root /root/whisnap-prod/.env.prod
+        chmod 600 /root/whisnap-prod/.env.prod
         
         echo "✅ Production environment setup complete"
         EOF
@@ -122,8 +155,11 @@ jobs:
         cd /root/whisnap-prod
         
         echo "🚀 Executing blue-green deployment..."
-        chmod +x scripts/deploy-blue-green.sh
-        ./scripts/deploy-blue-green.sh production
+        chmod +x deploy-blue-green.sh
+        export IMAGE_TAG=${{ github.sha }}
+        export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+        export GITHUB_ACTOR=${{ github.actor }}
+        ./deploy-blue-green.sh production
         
         echo "✅ Blue-green deployment complete"
         EOF
@@ -135,30 +171,30 @@ jobs:
         
         echo "🔍 Performing comprehensive health checks..."
         
-        # Check nginx configuration
-        sudo nginx -t
+        # Check nginx configuration inside container
+        docker exec nginx nginx -t
         
-        # Test HTTP endpoints
+        # Test HTTP endpoints through nginx container
         echo "🌐 Testing HTTP access..."
-        if curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1; then
+        if docker exec nginx curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1; then
           echo "✅ HTTP access working"
         else
           echo "❌ HTTP access failed"
           exit 1
         fi
         
-        # Test HTTPS endpoints  
+        # Test HTTPS endpoints through nginx container
         echo "🔒 Testing HTTPS access..."
-        if curl -f --max-time 10 -k -H "Host: whisnap.com" https://localhost/ >/dev/null 2>&1; then
+        if docker exec nginx curl -f --max-time 10 -k -H "Host: whisnap.com" https://localhost/ >/dev/null 2>&1; then
           echo "✅ HTTPS access working"
         else
           echo "❌ HTTPS access failed"
           exit 1
         fi
         
-        # Test API endpoints
+        # Test API endpoints through nginx container
         echo "🔌 Testing API endpoints..."
-        if curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
+        if docker exec nginx curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
           echo "✅ API endpoints working"
         else
           echo "❌ API endpoints failed"
