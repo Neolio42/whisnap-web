@@ -1,7 +1,7 @@
 FROM nginx:alpine
 
 # Copy nginx configuration
-COPY default.conf /etc/nginx/nginx.conf
+COPY blue-green.conf /etc/nginx/nginx.conf
 
 # Create log directory
 RUN mkdir -p /var/log/nginx

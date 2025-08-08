@@ -41,7 +41,12 @@ COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
 PROJECT_NAME="whisnap"
 
 if [[ "$ENVIRONMENT" == "staging" ]]; then
-    COMPOSE_FILES="-f infra/docker-compose.yml -f infra/docker-compose.staging.yml --env-file .env.staging"
+    # Check if staging override exists, otherwise use production config
+    STAGING_OVERRIDE=""
+    if [[ -f "infra/docker-compose.staging.yml" ]]; then
+        STAGING_OVERRIDE="-f infra/docker-compose.staging.yml"
+    fi
+    COMPOSE_FILES="-f infra/docker-compose.yml ${STAGING_OVERRIDE} --env-file .env.staging"
     PROJECT_NAME="whisnap-stg"
     log "Deploying to STAGING environment"
 else
@@ -51,9 +56,11 @@ fi
 log "Using image tag: ${IMAGE_TAG}"
 
 # Determine current and target colors
+NGINX_PROJECT_NAME="${NGINX_PROJECT_NAME:-nginx-proxy}"
 get_current_color() {
     # Check which upstream is currently active via nginx container
-    local current_upstream=$(docker exec nginx-proxy readlink -f /etc/nginx/upstreams/current.conf 2>/dev/null | grep -oE '(blue|green)' || echo "")
+    local nginx_container_name="${NGINX_PROJECT_NAME}-nginx-1"
+    local current_upstream=$(docker exec $nginx_container_name readlink -f /etc/nginx/upstreams/current.conf 2>/dev/null | grep -oE '(blue|green)' || echo "")
     if [[ -n "$current_upstream" ]]; then
         echo "$current_upstream"
     else
@@ -89,18 +96,38 @@ log "Creating external network 'edge' if it doesn't exist..."
 docker network create edge 2>/dev/null || log_warn "Network 'edge' already exists"
 docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' already exists"
 
-# Check for existing containers using port 80 and clean up if needed
-EXISTING_PORT_80=$(docker ps -q --filter "publish=80")
-if [[ -n "$EXISTING_PORT_80" ]]; then
-    log "Stopping existing containers using port 80..."
-    docker stop $EXISTING_PORT_80
-    docker rm $EXISTING_PORT_80
-fi
+# Comprehensive cleanup of containers that might conflict with nginx
+cleanup_conflicting_containers() {
+    # Find containers using port 80
+    local containers_using_port_80=$(docker ps -q --filter "publish=80")
+    
+    # Find nginx containers (by name pattern and image pattern)
+    local nginx_containers=$(docker ps -q --filter "name=nginx")
+    
+    # Find containers from old blue-green nginx pattern
+    local old_nginx_containers=$(docker ps -q --filter "name=whisnap-blue-nginx" --filter "name=whisnap-green-nginx")
+    
+    # Combine all container IDs and remove duplicates
+    local all_cleanup_containers=$(echo -e "$containers_using_port_80\n$nginx_containers\n$old_nginx_containers" | sort -u | grep -v '^$')
+    
+    if [[ -n "$all_cleanup_containers" ]]; then
+        log "Stopping conflicting containers (nginx/port 80): $(echo $all_cleanup_containers | tr '\n' ' ')"
+        docker stop $all_cleanup_containers 2>/dev/null || true
+        docker rm $all_cleanup_containers 2>/dev/null || true
+        log_success "Cleanup completed"
+    else
+        log "No conflicting containers found"
+    fi
+}
+
+cleanup_conflicting_containers
 
 # Start shared postgres if it's not running
-POSTGRES_RUNNING=$(docker ps --format '{{.Names}}' | grep postgres-shared | head -1)
+POSTGRES_PROJECT_NAME="postgres-shared"
+POSTGRES_RUNNING=$(docker ps --format '{{.Names}}' | grep "${POSTGRES_PROJECT_NAME}" | head -1)
 if [[ -z "$POSTGRES_RUNNING" ]]; then
     log "Starting shared PostgreSQL..."
+    COMPOSE_PROJECT_NAME="$POSTGRES_PROJECT_NAME" \
     docker compose -f infra/postgres-shared.yml --env-file .env.prod up -d --wait postgres
     
     if [[ $? -ne 0 ]]; then
@@ -113,9 +140,11 @@ else
 fi
 
 # Start nginx if it's not running (separate from blue/green stacks)
-NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep nginx-proxy | head -1)
+NGINX_PROJECT_NAME="nginx-proxy"
+NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep "${NGINX_PROJECT_NAME}" | head -1)
 if [[ -z "$NGINX_RUNNING" ]]; then
     log "Starting nginx proxy..."
+    COMPOSE_PROJECT_NAME="$NGINX_PROJECT_NAME" \
     docker compose -f infra/nginx-proxy.yml up -d --build nginx
     
     if [[ $? -ne 0 ]]; then
@@ -124,6 +153,12 @@ if [[ -z "$NGINX_RUNNING" ]]; then
     
     # Wait for nginx to be ready
     sleep 2
+    
+    # Initialize current.conf symlink if it doesn't exist (first deployment)
+    if ! docker exec "${NGINX_PROJECT_NAME}-nginx-1" test -L /etc/nginx/upstreams/current.conf 2>/dev/null; then
+        log "Creating initial upstream symlink (first deployment)..."
+        docker exec "${NGINX_PROJECT_NAME}-nginx-1" ln -sf /etc/nginx/upstreams/blue.conf /etc/nginx/upstreams/current.conf
+    fi
     
     log_success "Nginx proxy is running"
 else
@@ -157,10 +192,9 @@ log_success "${TARGET_COLOR} stack is running"
 
 # Step 5: Wait for health checks
 log "Performing health checks..."
-TARGET_WEB_CONTAINER="web-${TARGET_COLOR}"
-TARGET_API_CONTAINER="api-${TARGET_COLOR}"
+TARGET_WEB_CONTAINER="${PROJECT_NAME}-${TARGET_COLOR}-web-1"
+TARGET_API_CONTAINER="${PROJECT_NAME}-${TARGET_COLOR}-api-1"
 
-# Wait for containers to be healthy
 for i in {1..30}; do
     WEB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' $TARGET_WEB_CONTAINER 2>/dev/null || echo "no-health-check")
     API_STATUS=$(docker inspect --format='{{.State.Health.Status}}' $TARGET_API_CONTAINER 2>/dev/null || echo "no-health-check")
@@ -196,7 +230,7 @@ fi
 log "Switching nginx upstream to ${TARGET_COLOR}..."
 
 # Switch the symlink inside the nginx container
-NGINX_CONTAINER="nginx-proxy"
+NGINX_CONTAINER="${NGINX_PROJECT_NAME}-nginx-1"
 if ! docker ps --format '{{.Names}}' | grep -q "^${NGINX_CONTAINER}$"; then
     log_error "Nginx container not found: ${NGINX_CONTAINER}"
 fi
@@ -219,6 +253,7 @@ log_success "Nginx switched to ${TARGET_COLOR} upstream"
 
 # Step 8: Health check through nginx (should route to new color)
 log "Testing health through nginx after upstream switch..."
+HEALTH_CHECK_FAILED=false
 for i in {1..10}; do
     if docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1 && \
        docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
@@ -227,12 +262,32 @@ for i in {1..10}; do
     fi
     
     if [[ $i -eq 10 ]]; then
-        log_error "Health checks failed after upstream switch"
+        log "Health checks failed after upstream switch - initiating rollback"
+        HEALTH_CHECK_FAILED=true
+        break
     fi
     
     log "Retrying health check... (${i}/10)"
     sleep 2
 done
+
+# Rollback if health checks failed
+if [[ "$HEALTH_CHECK_FAILED" == "true" ]]; then
+    if [[ "$CURRENT_COLOR" != "none" && "$CURRENT_COLOR" != "$TARGET_COLOR" && "$CURRENT_COLOR" != "unknown" && -n "$CURRENT_COLOR" ]]; then
+        log "Rolling back to ${CURRENT_COLOR}..."
+        docker exec $NGINX_CONTAINER ln -sf /etc/nginx/upstreams/${CURRENT_COLOR}.conf /etc/nginx/upstreams/current.conf
+        docker exec $NGINX_CONTAINER nginx -s reload
+        
+        # Stop the failed target color stack
+        log "Stopping failed ${TARGET_COLOR} stack..."
+        COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
+        docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" down
+        
+        log_error "Deployment failed, rolled back to ${CURRENT_COLOR}"
+    else
+        log_error "Health checks failed after upstream switch and no previous color to rollback to"
+    fi
+fi
 
 # Step 9: Stop the old color (if it exists and is different)
 if [[ "$CURRENT_COLOR" != "none" && "$CURRENT_COLOR" != "$TARGET_COLOR" && "$CURRENT_COLOR" != "unknown" && -n "$CURRENT_COLOR" ]]; then
