@@ -68,9 +68,12 @@ jobs:
           --exclude='dist' \
           --exclude='coverage' \
           --exclude='docs' \
-          --exclude='Dockerfile*' \
-          --exclude='api/Dockerfile*' \
-          infra/ scripts/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/root/whisnap-deploy/
+          --include='infra/' \
+          --include='scripts/' \
+          --include='infra/**' \
+          --include='scripts/**' \
+          --exclude='*' \
+          . ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/root/whisnap-deploy/
         echo "✅ Infrastructure sync complete"
 
     - name: 🔐 Setup Production Environment & SSL
