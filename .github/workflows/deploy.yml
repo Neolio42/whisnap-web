@@ -178,11 +178,11 @@ jobs:
         echo "🔍 Performing comprehensive health checks..."
         
         # Check nginx configuration inside container
-        docker exec nginx nginx -t
+        docker exec nginx-proxy-nginx-1 nginx -t
         
         # Test HTTP endpoints through nginx container
         echo "🌐 Testing HTTP access..."
-        if docker exec nginx curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1; then
+        if docker exec nginx-proxy-nginx-1 curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1; then
           echo "✅ HTTP access working"
         else
           echo "❌ HTTP access failed"
@@ -191,7 +191,7 @@ jobs:
         
         # Test HTTPS endpoints through nginx container
         echo "🔒 Testing HTTPS access..."
-        if docker exec nginx curl -f --max-time 10 -k -H "Host: whisnap.com" https://localhost/ >/dev/null 2>&1; then
+        if docker exec nginx-proxy-nginx-1 curl -f --max-time 10 -k -H "Host: whisnap.com" https://localhost/ >/dev/null 2>&1; then
           echo "✅ HTTPS access working"
         else
           echo "❌ HTTPS access failed"
@@ -200,7 +200,7 @@ jobs:
         
         # Test API endpoints through nginx container
         echo "🔌 Testing API endpoints..."
-        if docker exec nginx curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
+        if docker exec nginx-proxy-nginx-1 curl -f --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
           echo "✅ API endpoints working"
         else
           echo "❌ API endpoints failed"
