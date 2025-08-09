@@ -12,7 +12,7 @@ trap 'echo "[ERROR] Line $LINENO failed"; exit 1' ERR
 
 # Environment and configuration
 ENVIRONMENT=${1:-production}
-FORCE_COLOR=$2
+FORCE_COLOR=${2:-}
 IMAGE_TAG=${IMAGE_TAG:?IMAGE_TAG environment variable required}
 GHCR_READ_TOKEN=${GHCR_READ_TOKEN:?GHCR_READ_TOKEN environment variable required}
 GITHUB_ACTOR=${GITHUB_ACTOR:?GITHUB_ACTOR environment variable required}
