@@ -1,35 +1,25 @@
 # =============================================================================
-# Next.js Web Application Dockerfile
+# Multi-Stage Dockerfile: Next.js Web Application (Dev + Production)
 # =============================================================================
 
 FROM node:20-bookworm-slim AS base
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install dependencies only when needed
+# ---- Dependencies stage ----
 FROM base AS deps
-WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
-RUN \
-  if [ -f package-lock.json ]; then npm ci --only=production; \
-  else echo "Lockfile not found." && exit 1; \
-  fi
-
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-
-# Install OpenSSL for Prisma in build stage
+# ---- Build stage (Production) ----
+FROM base AS build
+# Install OpenSSL for Prisma and curl for health checks
 RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
-# Install ALL dependencies for build (including dev deps like tailwindcss)
-COPY package.json package-lock.json* ./
-RUN \
-  if [ -f package-lock.json ]; then npm ci; \
-  else echo "Lockfile not found." && exit 1; \
-  fi
+# Copy all dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
 
-# Copy Next.js app files (exclude api directory)
+# Copy source files
 COPY app/ ./app/
 COPY components/ ./components/
 COPY libs/ ./libs/
@@ -37,64 +27,69 @@ COPY public/ ./public/
 COPY prisma/ ./prisma/
 COPY shared/ ./shared/
 COPY types/ ./types/
-COPY config.ts ./
-COPY middleware.ts ./
+COPY config.ts middleware.ts ./
 COPY *.config.* ./
-COPY tsconfig.json ./
-COPY tailwind.config.js ./
-COPY postcss.config.js ./
-COPY next-sitemap.config.js ./
-COPY next-env.d.ts ./
+COPY tsconfig.json tailwind.config.js postcss.config.js next-sitemap.config.js next-env.d.ts ./
+
+# Generate Prisma Client and build
+RUN npx prisma generate && npm run build
+
+# ---- Development stage ----
+FROM base AS dev
+# Install system dependencies
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
+
+# Copy package files and install ALL dependencies (including dev dependencies)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy all source files
+COPY . .
 
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-ENV NEXT_TELEMETRY_DISABLED 1
-
-RUN npm run build
-
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-
-# Install OpenSSL for Prisma and curl for health checks
-RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy the public folder
-COPY --from=builder /app/public ./public
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy Prisma schema and generate client in production
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-
-USER nextjs
-
+ENV NODE_ENV=development
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-# Health check
+# Health check for development
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+CMD ["npm", "run", "dev"]
+
+# ---- Production runtime stage ----
+FROM node:20-bookworm-slim AS prod
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Install runtime dependencies and create user
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/* \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy Prisma artifacts
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+
+# Set permissions for Next.js cache
+RUN mkdir .next && chown nextjs:nodejs .next
+
+USER nextjs
+EXPOSE 3000
+
+# Health check with improved timing for production
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server.js"]

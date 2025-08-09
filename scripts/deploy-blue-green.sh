@@ -1,53 +1,36 @@
 #!/bin/bash
-set -e
+# =============================================================================
+# Streamlined Blue-Green Deployment Script (2025 Edition)
+# Usage: ./deploy-blue-green-v2.sh [environment] [--force-color]
+# =============================================================================
 
-# Blue-Green Deployment Script with proper image versioning
-# Usage: ./deploy-blue-green.sh [environment] [--force-color]
+set -Eeuo pipefail
+IFS=$'\n\t'
 
+# Trap errors with line numbers for better debugging
+trap 'echo "[ERROR] Line $LINENO failed"; exit 1' ERR
+
+# Environment and configuration
 ENVIRONMENT=${1:-production}
 FORCE_COLOR=$2
+IMAGE_TAG=${IMAGE_TAG:?IMAGE_TAG environment variable required}
+GHCR_READ_TOKEN=${GHCR_READ_TOKEN:?GHCR_READ_TOKEN environment variable required}
+GITHUB_ACTOR=${GITHUB_ACTOR:?GITHUB_ACTOR environment variable required}
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Colors and logging
+log() { echo -e "\033[0;34m[$(date +'%F %T')]\033[0m $*"; }
+log_success() { echo -e "\033[0;32m[$(date +'%F %T')] ✅\033[0m $*"; }
+log_warn() { echo -e "\033[1;33m[$(date +'%F %T')] ⚠️\033[0m $*"; }
+log_error() { echo -e "\033[0;31m[$(date +'%F %T')] ❌\033[0m $*"; exit 1; }
 
-log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✅${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠️${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ❌${NC} $1"
-    exit 1
-}
-
-# Validate required environment variables
-if [[ -z "$IMAGE_TAG" ]]; then
-    log_error "IMAGE_TAG environment variable is required"
-fi
-
-# Configuration
-COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
+# Project configuration
 PROJECT_NAME="whisnap"
+COLOR_FILE="/var/run/whisnap-color"
+COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
 
 if [[ "$ENVIRONMENT" == "staging" ]]; then
-    # Check if staging override exists, otherwise use production config
-    STAGING_OVERRIDE=""
-    if [[ -f "infra/docker-compose.staging.yml" ]]; then
-        STAGING_OVERRIDE="-f infra/docker-compose.staging.yml"
-    fi
-    COMPOSE_FILES="-f infra/docker-compose.yml ${STAGING_OVERRIDE} --env-file .env.staging"
     PROJECT_NAME="whisnap-stg"
+    COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.staging"
     log "Deploying to STAGING environment"
 else
     log "Deploying to PRODUCTION environment"
@@ -55,277 +38,131 @@ fi
 
 log "Using image tag: ${IMAGE_TAG}"
 
-# Determine current and target colors
-NGINX_PROJECT_NAME="${NGINX_PROJECT_NAME:-nginx-proxy}"
-get_current_color() {
-    # Check which upstream is currently active via nginx container
-    local nginx_container_name="${NGINX_PROJECT_NAME}-nginx-1"
-    local current_upstream=$(docker exec $nginx_container_name readlink -f /etc/nginx/upstreams/current.conf 2>/dev/null | grep -oE '(blue|green)' || echo "")
-    if [[ -n "$current_upstream" ]]; then
-        echo "$current_upstream"
-    else
-        # Fallback: check running containers
-        local live_container=$(docker ps --format '{{.Names}}' | grep -E '^web-(blue|green)$' || true)
-        if [[ "$live_container" =~ web-(blue|green) ]]; then
-            echo "${BASH_REMATCH[1]}"
-        else
-            echo "blue"  # default if first deploy
-        fi
-    fi
-}
-
-CURRENT_COLOR=$(get_current_color)
+# Determine colors (simplified logic)
+CURRENT_COLOR=$(cat "$COLOR_FILE" 2>/dev/null || echo "blue")
 if [[ "$FORCE_COLOR" == "--force-blue" ]]; then
     TARGET_COLOR="blue"
 elif [[ "$FORCE_COLOR" == "--force-green" ]]; then
     TARGET_COLOR="green"
-elif [[ "$CURRENT_COLOR" == "blue" ]]; then
-    TARGET_COLOR="green"
-elif [[ "$CURRENT_COLOR" == "green" ]]; then
-    TARGET_COLOR="blue"
 else
-    # First deployment, default to blue
-    TARGET_COLOR="blue"
+    TARGET_COLOR=$( [ "$CURRENT_COLOR" = "blue" ] && echo "green" || echo "blue" )
 fi
 
-log "Current active color: ${CURRENT_COLOR}"
-log "Deploying to: ${TARGET_COLOR}"
+log "Current: ${CURRENT_COLOR} → Target: ${TARGET_COLOR}"
 
-# Step 1: Create external network and start nginx if it doesn't exist
-log "Creating external network 'edge' if it doesn't exist..."
-docker network create edge 2>/dev/null || log_warn "Network 'edge' already exists"
-docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' already exists"
+# Setup networks (idempotent)
+log "Setting up networks..."
+docker network create edge 2>/dev/null || log_warn "Network 'edge' exists"
+docker network create whisnap-network 2>/dev/null || log_warn "Network 'whisnap-network' exists"
 
-# Comprehensive cleanup of containers that might conflict with nginx
-cleanup_conflicting_containers() {
-    # Find containers using port 80
-    local containers_using_port_80=$(docker ps -q --filter "publish=80")
-    
-    # Find nginx containers (by name pattern and image pattern)
-    local nginx_containers=$(docker ps -q --filter "name=nginx")
-    
-    # Find containers from old blue-green nginx pattern
-    local old_nginx_containers=$(docker ps -q --filter "name=whisnap-blue-nginx" --filter "name=whisnap-green-nginx")
-    
-    # Combine all container IDs and remove duplicates
-    local all_cleanup_containers=$(echo -e "$containers_using_port_80\n$nginx_containers\n$old_nginx_containers" | sort -u | grep -v '^$')
-    
-    if [[ -n "$all_cleanup_containers" ]]; then
-        log "Stopping conflicting containers (nginx/port 80): $(echo $all_cleanup_containers | tr '\n' ' ')"
-        docker stop $all_cleanup_containers 2>/dev/null || true
-        docker rm $all_cleanup_containers 2>/dev/null || true
-        log_success "Cleanup completed"
-    else
-        log "No conflicting containers found"
-    fi
-}
-
-cleanup_conflicting_containers
-
-# Start shared postgres if it's not running
-POSTGRES_PROJECT_NAME="postgres-shared"
-POSTGRES_RUNNING=$(docker ps --format '{{.Names}}' | grep "${POSTGRES_PROJECT_NAME}" | head -1)
-if [[ -z "$POSTGRES_RUNNING" ]]; then
-    log "Starting shared PostgreSQL..."
-    COMPOSE_PROJECT_NAME="$POSTGRES_PROJECT_NAME" \
+# Start shared services
+log "Starting shared PostgreSQL..."
+if ! docker ps --format '{{.Names}}' | grep -q "postgres-shared"; then
+    COMPOSE_PROJECT_NAME="postgres-shared" \
     docker compose -f infra/postgres-shared.yml --env-file .env.prod up -d --wait postgres
-    
-    if [[ $? -ne 0 ]]; then
-        log_error "Failed to start shared PostgreSQL"
-    fi
-    
-    log_success "Shared PostgreSQL is running"
+    log_success "PostgreSQL started"
 else
-    log_warn "PostgreSQL already running: $POSTGRES_RUNNING"
+    log_warn "PostgreSQL already running"
 fi
 
-# Ensure postgres is connected to target color network
-TARGET_NETWORK="${PROJECT_NAME}-${TARGET_COLOR}_whisnap-network"
-if ! docker network ls | grep -q "$TARGET_NETWORK"; then
-    log_warn "Target network $TARGET_NETWORK doesn't exist yet, will be created by docker compose"
-else
-    # Check if postgres is already connected to target network
-    POSTGRES_NETWORKS=$(docker inspect $POSTGRES_RUNNING --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null || echo "")
-    if [[ ! "$POSTGRES_NETWORKS" =~ "$TARGET_NETWORK" ]]; then
-        log "Connecting PostgreSQL to target network: $TARGET_NETWORK"
-        docker network connect "$TARGET_NETWORK" $POSTGRES_RUNNING 2>/dev/null || log_warn "Failed to connect postgres to $TARGET_NETWORK"
-    fi
-fi
+# GHCR Authentication (2025 fix: use PAT instead of GITHUB_TOKEN)
+log "Authenticating with GHCR..."
+echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1 || log_warn "GHCR login skipped"
 
-# Start nginx if it's not running (separate from blue/green stacks)
-NGINX_PROJECT_NAME="nginx-proxy"
-NGINX_RUNNING=$(docker ps --format '{{.Names}}' | grep "${NGINX_PROJECT_NAME}" | head -1)
-if [[ -z "$NGINX_RUNNING" ]]; then
-    log "Starting nginx proxy..."
-    COMPOSE_PROJECT_NAME="$NGINX_PROJECT_NAME" \
-    docker compose -f infra/nginx-proxy.yml up -d --build nginx
-    
-    if [[ $? -ne 0 ]]; then
-        log_error "Failed to start nginx proxy"
-    fi
-    
-    # Wait for nginx to be ready
-    sleep 2
-    
-    # Initialize current.conf symlink if it doesn't exist (first deployment)
-    if ! docker exec "${NGINX_PROJECT_NAME}-nginx-1" test -L /etc/nginx/upstreams/current.conf 2>/dev/null; then
-        log "Creating initial upstream symlink (first deployment)..."
-        docker exec "${NGINX_PROJECT_NAME}-nginx-1" ln -sf /etc/nginx/upstreams/blue.conf /etc/nginx/upstreams/current.conf
-    fi
-    
-    log_success "Nginx proxy is running"
-else
-    log_warn "Nginx already running: $NGINX_RUNNING"
-fi
-
-# Step 2: Login to GHCR (in case not already logged in)
-log "Ensuring Docker is logged into GHCR..."
-echo $GITHUB_TOKEN | docker login ghcr.io -u $(echo $GITHUB_ACTOR) --password-stdin 2>/dev/null || log_warn "GHCR login skipped (may already be logged in)"
-
-# Step 3: Pull images for the target stack
-log "Pulling images for ${TARGET_COLOR} stack..."
-export IMAGE_TAG
-COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
-docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" pull web api
-
-if [[ $? -ne 0 ]]; then
-    log_error "Failed to pull images for ${TARGET_COLOR} stack"
-fi
-
-# Step 4: Start the target color stack (web and api only, postgres is shared)
+# Pull and start target stack (2025 improvement: use --wait)
 log "Starting ${TARGET_COLOR} stack..."
+export COLOR="$TARGET_COLOR"
 COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
-docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" up -d --wait web api
+docker compose $COMPOSE_FILES pull web api
 
-if [[ $? -ne 0 ]]; then
-    log_error "Failed to start ${TARGET_COLOR} stack"
+COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
+docker compose $COMPOSE_FILES up -d --wait web api
+
+log_success "${TARGET_COLOR} stack ready"
+
+# Database migrations (production only)
+if [[ "$ENVIRONMENT" == "production" ]]; then
+    log "Running database migrations..."
+    COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
+    docker compose $COMPOSE_FILES exec -T -e HOME=/app api \
+        bash -c 'psql $DATABASE_URL -c "SET lock_timeout = '\'2s\''; SET statement_timeout = '\'60s\''"' || true
+    
+    COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
+    docker compose $COMPOSE_FILES exec -T -e HOME=/app api npx prisma migrate deploy
+    
+    log_success "Migrations completed"
 fi
 
-log_success "${TARGET_COLOR} stack is running"
+# Switch nginx via template rendering (2025 improvement)
+log "Switching nginx to ${TARGET_COLOR}..."
+UPSTREAM_PREFIX="${PROJECT_NAME}-${TARGET_COLOR}"
 
-# Step 5: Wait for health checks
-log "Performing health checks..."
-TARGET_WEB_CONTAINER="${PROJECT_NAME}-${TARGET_COLOR}-web-1"
-TARGET_API_CONTAINER="${PROJECT_NAME}-${TARGET_COLOR}-api-1"
+# Render nginx template
+env UPSTREAM_PREFIX="$UPSTREAM_PREFIX" \
+envsubst '${UPSTREAM_PREFIX}' < infra/nginx/nginx.conf.tmpl > infra/nginx/nginx.conf
 
-for i in {1..30}; do
-    WEB_STATUS=$(docker inspect --format='{{.State.Health.Status}}' $TARGET_WEB_CONTAINER 2>/dev/null || echo "no-health-check")
-    API_STATUS=$(docker inspect --format='{{.State.Health.Status}}' $TARGET_API_CONTAINER 2>/dev/null || echo "no-health-check")
-    
-    if [[ "$WEB_STATUS" == "healthy" || "$WEB_STATUS" == "no-health-check" ]] && \
-       [[ "$API_STATUS" == "healthy" || "$API_STATUS" == "no-health-check" ]]; then
+# Update nginx container
+COMPOSE_PROJECT_NAME="nginx-proxy" \
+docker compose -f infra/nginx-proxy.yml up -d nginx
+
+# Test and reload nginx
+if docker exec nginx-proxy-nginx-1 nginx -t; then
+    docker exec nginx-proxy-nginx-1 nginx -s reload || docker restart nginx-proxy-nginx-1
+    log_success "Nginx switched to ${TARGET_COLOR}"
+else
+    log_error "Nginx configuration test failed"
+fi
+
+# Health check through nginx (keep this for safety)
+log "Validating health through nginx..."
+for i in {1..10}; do
+    if docker exec nginx-proxy-nginx-1 curl -fsS -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1 && \
+       docker exec nginx-proxy-nginx-1 curl -fsS -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
         log_success "Health checks passed"
         break
     fi
     
-    if [[ $i -eq 30 ]]; then
-        log_error "Health checks failed after 30 attempts"
-    fi
-    
-    log "Waiting for health checks... (${i}/30) [Web: ${WEB_STATUS}, API: ${API_STATUS}]"
-    sleep 2
-done
-
-# Step 6: Run database migrations (only for production)
-if [[ "$ENVIRONMENT" == "production" ]]; then
-    log "Running database migrations..."
-    COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
-    docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" exec -T -e HOME=/app api npx prisma migrate deploy
-    
-    if [[ $? -ne 0 ]]; then
-        log_error "Database migration failed"
-    fi
-    
-    log_success "Database migrations completed"
-fi
-
-# Step 7: Switch nginx upstream inside the container
-log "Switching nginx upstream to ${TARGET_COLOR}..."
-
-# Switch the symlink inside the nginx container
-NGINX_CONTAINER="${NGINX_PROJECT_NAME}-nginx-1"
-if ! docker ps --format '{{.Names}}' | grep -q "^${NGINX_CONTAINER}$"; then
-    log_error "Nginx container not found: ${NGINX_CONTAINER}"
-fi
-
-docker exec $NGINX_CONTAINER ln -sf /etc/nginx/upstreams/${TARGET_COLOR}.conf /etc/nginx/upstreams/current.conf
-
-if [[ $? -ne 0 ]]; then
-    log_error "Failed to switch nginx upstream"
-fi
-
-# Test nginx config and reload
-log "Testing nginx configuration and reloading..."
-docker exec $NGINX_CONTAINER nginx -t
-if [[ $? -eq 0 ]]; then
-    # Try reload first, if it fails try restart
-    docker exec $NGINX_CONTAINER nginx -s reload 2>/dev/null || docker restart $NGINX_CONTAINER
-fi
-
-if [[ $? -ne 0 ]]; then
-    log_error "Nginx reload failed"
-fi
-
-log_success "Nginx switched to ${TARGET_COLOR} upstream"
-
-# Step 8: Health check through nginx (should route to new color)
-log "Testing health through nginx after upstream switch..."
-HEALTH_CHECK_FAILED=false
-for i in {1..10}; do
-    if docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/ >/dev/null 2>&1 && \
-       docker exec $NGINX_CONTAINER curl -fsS --max-time 10 -H "Host: whisnap.com" http://localhost/api/v1/health >/dev/null 2>&1; then
-        log_success "Health checks passed after upstream switch"
-        break
-    fi
-    
     if [[ $i -eq 10 ]]; then
-        log "Health checks failed after upstream switch - initiating rollback"
-        HEALTH_CHECK_FAILED=true
-        break
+        # Rollback on failure
+        if [[ -n "$CURRENT_COLOR" && "$CURRENT_COLOR" != "$TARGET_COLOR" ]]; then
+            log "Rolling back to ${CURRENT_COLOR}..."
+            env UPSTREAM_PREFIX="${PROJECT_NAME}-${CURRENT_COLOR}" \
+            envsubst '${UPSTREAM_PREFIX}' < infra/nginx/nginx.conf.tmpl > infra/nginx/nginx.conf
+            docker exec nginx-proxy-nginx-1 nginx -s reload
+            
+            COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
+            docker compose $COMPOSE_FILES down
+            
+            log_error "Deployment failed, rolled back to ${CURRENT_COLOR}"
+        else
+            log_error "Health checks failed and no rollback target available"
+        fi
     fi
     
-    log "Retrying health check... (${i}/10)"
+    log "Retry ${i}/10..."
     sleep 2
 done
 
-# Rollback if health checks failed
-if [[ "$HEALTH_CHECK_FAILED" == "true" ]]; then
-    if [[ "$CURRENT_COLOR" != "none" && "$CURRENT_COLOR" != "$TARGET_COLOR" && "$CURRENT_COLOR" != "unknown" && -n "$CURRENT_COLOR" ]]; then
-        log "Rolling back to ${CURRENT_COLOR}..."
-        docker exec $NGINX_CONTAINER ln -sf /etc/nginx/upstreams/${CURRENT_COLOR}.conf /etc/nginx/upstreams/current.conf
-        docker exec $NGINX_CONTAINER nginx -s reload
-        
-        # Stop the failed target color stack
-        log "Stopping failed ${TARGET_COLOR} stack..."
-        COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${TARGET_COLOR}" \
-        docker compose $COMPOSE_FILES -f "infra/${TARGET_COLOR}.yml" down
-        
-        log_error "Deployment failed, rolled back to ${CURRENT_COLOR}"
-    else
-        log_error "Health checks failed after upstream switch and no previous color to rollback to"
-    fi
-fi
-
-# Step 9: Stop the old color (if it exists and is different)
-if [[ "$CURRENT_COLOR" != "none" && "$CURRENT_COLOR" != "$TARGET_COLOR" && "$CURRENT_COLOR" != "unknown" && -n "$CURRENT_COLOR" ]]; then
+# Stop old stack and finalize
+if [[ -n "$CURRENT_COLOR" && "$CURRENT_COLOR" != "$TARGET_COLOR" ]]; then
     log "Stopping old ${CURRENT_COLOR} stack..."
     COMPOSE_PROJECT_NAME="${PROJECT_NAME}-${CURRENT_COLOR}" \
-    docker compose $COMPOSE_FILES -f "infra/${CURRENT_COLOR}.yml" down
-    
-    log_success "Old ${CURRENT_COLOR} stack stopped"
-else
-    log_warn "No old stack to stop (current: ${CURRENT_COLOR})"
+    docker compose $COMPOSE_FILES down
+    log_success "Old stack stopped"
 fi
 
-# Step 10: Cleanup old images (but keep recent ones for rollback)
-log "Cleaning up old Docker images (keeping recent tags)..."
-# Only remove untagged/dangling images, not tagged ones
-docker image prune -f
+# Update color tracking
+echo "$TARGET_COLOR" | sudo tee "$COLOR_FILE" >/dev/null 2>&1 || echo "$TARGET_COLOR" > "$COLOR_FILE"
 
-log_success "🎉 Deployment complete! Active color: ${TARGET_COLOR}"
-log "Image tag deployed: ${IMAGE_TAG}"
-log "You can verify the deployment at: https://whisnap.com"
+# Cleanup (conservative - keep recent images for rollback)
+log "Cleaning up resources..."
+docker image prune -f >/dev/null 2>&1 || true
+
+# Success summary
+log_success "🎉 Deployment complete!"
+log "Active color: ${TARGET_COLOR} (tag: ${IMAGE_TAG})"
+log "Application: https://whisnap.com"
 
 # Show running containers
-log "Current running containers:"
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep -E "(web-|api-|nginx)" | head -10
+log "Active containers:"
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep -E "(web-|api-|nginx)" | head -10 || true

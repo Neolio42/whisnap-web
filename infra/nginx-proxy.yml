@@ -1,24 +1,29 @@
-# Standalone Nginx Proxy for Blue-Green Deployment
-# This runs separately from blue/green stacks
+# Template-Based Nginx Proxy for Blue-Green Deployment
+# Uses envsubst to render configuration from template
 
 services:
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
+    image: nginx:alpine
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /etc/letsencrypt/live/whisnap.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
       - /etc/letsencrypt/live/whisnap.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
-      - ./nginx/upstreams:/etc/nginx/upstreams:rw
-      - ./nginx/blue-green.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # Rendered from template by deploy script
       - nginx_logs:/var/log/nginx
     restart: unless-stopped
     networks:
       - whisnap-network
       - edge
+    # Security hardening and log rotation
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   nginx_logs:
