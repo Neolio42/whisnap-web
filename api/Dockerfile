@@ -13,6 +13,7 @@ RUN npm ci
 
 # ---- Build stage (Production) ----
 FROM base AS build
+COPY api/package.json api/package-lock.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY api/src/ ./src/
 COPY api/tsconfig.json ./
@@ -25,12 +26,11 @@ RUN npx prisma generate
 # Build shared types first (outputs to shared/dist/)
 RUN cd shared && npx tsc
 
-# Fix paths for Docker build (shared is at ./shared not ../shared)
-RUN sed -i '/"references":/d' tsconfig.json && \
-    sed -i 's|"../shared/dist/\*"|"./shared/dist/*"|g' tsconfig.json
+# Create Docker-specific tsconfig that removes references and fixes paths
+RUN echo '{ "extends": "./tsconfig.json", "compilerOptions": { "paths": { "@shared/*": ["./shared/dist/*"] } }, "references": [] }' > tsconfig.docker.json
 
 # Build API (can now reference shared/dist/)
-RUN npm run build
+RUN npx tsc -p tsconfig.docker.json
 
 # ---- Development stage ----
 FROM base AS dev

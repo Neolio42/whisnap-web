@@ -80,7 +80,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /app/logs
     # Log rotation
     logging:
       driver: json-file
@@ -88,24 +87,24 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Redis Cache (Optional - for session caching and rate limiting)
-  redis:
-    image: redis:7-alpine
-    expose:
-      - "6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-whisnap_redis}
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    networks:
-      - whisnap-network
-    profiles:
-      - cache
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+  # Redis Cache (DISABLED - Optional service not needed for MVP)
+  # redis:
+  #   image: redis:7-alpine
+  #   expose:
+  #     - "6379"
+  #   command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-whisnap_redis}
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - whisnap-network
+  #   profiles:
+  #     - cache
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-whisnap_redis}", "ping"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
 
 volumes:
   postgres_data_prod:
@@ -117,8 +116,6 @@ volumes:
   api_uploads:
     driver: local
   nginx_logs:
-    driver: local
-  redis_data:
     driver: local
 
 networks:

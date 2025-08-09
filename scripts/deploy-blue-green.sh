@@ -26,15 +26,20 @@ log_error() { echo -e "\033[0;31m[$(date +'%F %T')] ❌\033[0m $*"; exit 1; }
 # Project configuration
 PROJECT_NAME="whisnap"
 COLOR_FILE="/var/run/whisnap-color"
-COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.prod"
+ENV_FILE=".env.prod"
 
 if [[ "$ENVIRONMENT" == "staging" ]]; then
     PROJECT_NAME="whisnap-stg"
-    COMPOSE_FILES="-f infra/docker-compose.yml --env-file .env.staging"
+    ENV_FILE=".env.staging"
     log "Deploying to STAGING environment"
 else
     log "Deploying to PRODUCTION environment"
 fi
+
+# Validate environment file exists
+[[ -f "$ENV_FILE" ]] || log_error "Environment file $ENV_FILE not found"
+
+COMPOSE_FILES="-f infra/docker-compose.yml --env-file $ENV_FILE"
 
 log "Using image tag: ${IMAGE_TAG}"
 
@@ -97,9 +102,18 @@ fi
 log "Switching nginx to ${TARGET_COLOR}..."
 UPSTREAM_PREFIX="${PROJECT_NAME}-${TARGET_COLOR}"
 
-# Render nginx template
+# Validate template file exists
+[[ -f "infra/nginx/nginx.conf.tmpl" ]] || log_error "Nginx template file infra/nginx/nginx.conf.tmpl not found"
+
+# Render nginx template with validation
 env UPSTREAM_PREFIX="$UPSTREAM_PREFIX" \
-envsubst '${UPSTREAM_PREFIX}' < infra/nginx/nginx.conf.tmpl > infra/nginx/nginx.conf
+envsubst '${UPSTREAM_PREFIX}' < infra/nginx/nginx.conf.tmpl > infra/nginx/nginx.conf.tmp
+
+# Validate template rendering succeeded
+[[ -s infra/nginx/nginx.conf.tmp ]] || log_error "Template rendering failed - output file is empty"
+
+# Atomically move rendered config into place
+mv infra/nginx/nginx.conf.tmp infra/nginx/nginx.conf
 
 # Update nginx container
 COMPOSE_PROJECT_NAME="nginx-proxy" \

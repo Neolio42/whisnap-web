@@ -16,7 +16,8 @@ FROM base AS build
 # Install OpenSSL for Prisma and curl for health checks
 RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
-# Copy all dependencies from deps stage
+# Copy package files and dependencies from deps stage
+COPY package.json package-lock.json ./
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source files

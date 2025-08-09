@@ -118,6 +118,7 @@ jobs:
         DATABASE_USER=whisnap_prod_user
         DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
         DATABASE_PORT=5432
+        DATABASE_URL=postgresql://whisnap_prod_user:${{ secrets.DATABASE_PASSWORD }}@postgres-shared-postgres-1:5432/whisnap_prod
         ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
         JWT_SECRET=${{ secrets.JWT_SECRET }}
         NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
@@ -139,7 +140,6 @@ jobs:
         WEB_PORT=3000
         API_PORT=4000
         WS_PORT=4001
-        REDIS_PORT=6379
         ENVEOF
         
         echo "🔒 Verifying SSL certificates..."
