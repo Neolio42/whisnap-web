@@ -41,15 +41,6 @@ jobs:
     - name: 🔐 Install Cosign for Image Signing
       uses: sigstore/cosign-installer@v3
 
-    - name: 🛡️ Security Scan Web Image
-      uses: aquasecurity/trivy-action@0.24.0
-      with:
-        image-ref: ghcr.io/neolio42/whisnap-web:${{ github.sha }}
-        format: 'sarif'
-        output: 'trivy-web-results.sarif'
-        severity: 'CRITICAL,HIGH'
-        exit-code: '0'  # Don't fail build on vulnerabilities
-
     - name: 🏗️ Build and Push Web Image
       uses: docker/build-push-action@v6
       with:
@@ -65,6 +56,15 @@ jobs:
         
     - name: 🔐 Sign Web Image
       run: cosign sign --yes ghcr.io/neolio42/whisnap-web:${{ github.sha }}
+
+    - name: 🛡️ Security Scan Web Image
+      uses: aquasecurity/trivy-action@0.24.0
+      with:
+        image-ref: ghcr.io/neolio42/whisnap-web:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-web-results.sarif'
+        severity: 'CRITICAL,HIGH'
+        exit-code: '0'  # Don't fail build on vulnerabilities
         
     - name: 🏗️ Build and Push API Image
       uses: docker/build-push-action@v6
