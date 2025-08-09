@@ -83,10 +83,10 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 
-# Set permissions for Next.js cache
-RUN mkdir .next && chown nextjs:nodejs .next
-
 USER nextjs
+
+# Create .next directory as nextjs user
+RUN mkdir -p .next
 EXPOSE 3000
 
 # Health check with improved timing for production
